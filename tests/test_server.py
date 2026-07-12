@@ -133,6 +133,42 @@ def test_csv_upload_normalizes_timezone_aware_timestamps_to_naive_utc():
     assert received["date"].dt.tz is None
 
 
+def test_json_forecast_normalizes_panel_and_covariate_timestamps():
+    forecaster = Mock()
+    forecaster.predict.return_value = pd.DataFrame(
+        [{"date": pd.Timestamp("2025-03-30T02:00:00"), "target_predicted": 87.0}]
+    )
+    request = {
+        "data": [
+            {"date": "2025-03-30T00:00:00+00:00", "target": 84.2, "store": "A"},
+            {"date": "2025-03-30T02:00:00+01:00", "target": 86.1, "store": "A"},
+        ],
+        "past_covariates": [
+            {"date": "2025-03-30T00:00:00+00:00", "temperature": 12, "store": "A"}
+        ],
+        "future_covariates": [
+            {"date": "2025-03-30T02:00:00+01:00", "temperature": 13, "store": "A"}
+        ],
+        "forecast_horizon": 1,
+        "item_id_col": "store",
+    }
+
+    with patch.object(server, "get_forecaster", return_value=forecaster):
+        response = client.post("/forecast", json=request)
+
+    assert response.status_code == 200
+    data = forecaster.predict.call_args.args[0]
+    past = forecaster.predict.call_args.kwargs["past_covariates_df"]
+    future = forecaster.predict.call_args.kwargs["future_covariates_df"]
+    assert data["date"].tolist() == [
+        pd.Timestamp("2025-03-30T00:00:00"),
+        pd.Timestamp("2025-03-30T01:00:00"),
+    ]
+    assert past["date"].dt.tz is None
+    assert future["date"].dt.tz is None
+    assert data["store"].tolist() == ["A", "A"]
+
+
 def test_csv_upload_passes_covariates_and_panel_configuration():
     historical = b"date,target,store\n2025-01-01,84.2,A\n2025-01-02,86.1,A\n"
     past = b"date,temperature,store\n2025-01-01,12,A\n2025-01-02,13,A\n"
