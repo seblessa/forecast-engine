@@ -1,0 +1,166 @@
+"""REST API for the public chronos_forecaster package."""
+
+from __future__ import annotations
+
+import json
+import os
+from functools import lru_cache
+from importlib.metadata import version
+from threading import Lock
+from typing import Any, Literal
+
+import pandas as pd
+import uvicorn
+from chronos_forecaster import ChronosForecaster
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class ForecastRequest(BaseModel):
+    """Input data and the matching Chronos configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    data: list[dict[str, Any]] = Field(min_length=1)
+    forecast_horizon: int = Field(gt=0)
+    datetime_col: str = "date"
+    target_col: str = "target"
+    item_id_col: str | None = None
+    frequency: str = "h"
+    random_state: int | None = None
+    engine: Literal["chronos", "chronos2"] = "chronos2"
+    past_covariates: list[dict[str, Any]] | None = None
+    future_covariates: list[dict[str, Any]] | None = None
+
+
+class ForecastResponse(BaseModel):
+    predictions: list[dict[str, Any]]
+
+
+@lru_cache(maxsize=8)
+def get_forecaster(
+    forecast_horizon: int,
+    datetime_col: str,
+    target_col: str,
+    item_id_col: str | None,
+    frequency: str,
+    random_state: int | None,
+    engine: str,
+) -> ChronosForecaster:
+    """Reuse loaded models for repeated configurations."""
+    return ChronosForecaster(
+        forecast_horizon=forecast_horizon,
+        datetime_col=datetime_col,
+        target_col=target_col,
+        item_id_col=item_id_col,
+        frequency=frequency,
+        random_state=random_state,
+        engine=engine,
+    )
+
+
+app = FastAPI(
+    title="Forecast Engine",
+    description="Local REST interface for chronos_forecaster.",
+    version="0.1.0",
+)
+_forecast_lock = Lock()
+
+
+@app.get("/health")
+def health() -> dict[str, Any]:
+    """Report readiness without downloading a model."""
+    return {
+        "status": "ok",
+        "chronos_forecaster_version": version("chronos_forecaster"),
+        "cached_configurations": get_forecaster.cache_info().currsize,
+    }
+
+
+def _as_dataframe(
+    records: list[dict[str, Any]] | None,
+    name: str,
+    required_columns: set[str],
+) -> pd.DataFrame | None:
+    if records is None:
+        return None
+
+    frame = pd.DataFrame(records)
+    missing = required_columns - set(frame.columns)
+    if missing:
+        raise HTTPException(
+            status_code=422,
+            detail=f"{name} is missing columns: {', '.join(sorted(missing))}",
+        )
+    return frame
+
+
+@app.post("/forecast", response_model=ForecastResponse)
+def forecast(request: ForecastRequest) -> ForecastResponse:
+    """Generate a point forecast and 80% prediction interval."""
+    required = {request.datetime_col, request.target_col}
+    if request.item_id_col:
+        required.add(request.item_id_col)
+
+    data = _as_dataframe(request.data, "data", required)
+    covariate_columns = {request.datetime_col}
+    if request.item_id_col:
+        covariate_columns.add(request.item_id_col)
+
+    past = _as_dataframe(request.past_covariates, "past_covariates", covariate_columns)
+    future = _as_dataframe(
+        request.future_covariates, "future_covariates", covariate_columns
+    )
+
+    if request.engine == "chronos" and (past is not None or future is not None):
+        raise HTTPException(
+            status_code=422,
+            detail="Covariates require engine='chronos2'.",
+        )
+
+    forecaster = get_forecaster(
+        request.forecast_horizon,
+        request.datetime_col,
+        request.target_col,
+        request.item_id_col,
+        request.frequency,
+        request.random_state,
+        request.engine,
+    )
+
+    try:
+        # The underlying pipelines are shared and should not run concurrently.
+        with _forecast_lock:
+            result = forecaster.predict(
+                data,
+                past_covariates_df=past,
+                future_covariates_df=future,
+            )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    # chronos_forecaster 0.2.2 omits the series key from panel output.
+    if request.item_id_col and request.item_id_col not in result.columns:
+        item_ids = data[request.item_id_col].drop_duplicates().tolist()
+        expected_rows = len(item_ids) * request.forecast_horizon
+        if len(result) != expected_rows:
+            raise HTTPException(
+                status_code=500,
+                detail="Unexpected number of rows in panel forecast.",
+            )
+        result.insert(
+            0,
+            request.item_id_col,
+            [item_id for item_id in item_ids for _ in range(request.forecast_horizon)],
+        )
+
+    predictions = json.loads(result.to_json(orient="records", date_format="iso"))
+    return ForecastResponse(predictions=predictions)
+
+
+if __name__ == "__main__":
+    uvicorn.run(
+        app,
+        host=os.getenv("HOST", "0.0.0.0"),
+        port=int(os.getenv("PORT", "8000")),
+    )
