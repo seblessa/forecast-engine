@@ -101,6 +101,38 @@ def test_csv_upload_builds_forecast_request():
     assert response.json()["predictions"][0]["target_predicted"] == 86.4
 
 
+def test_csv_upload_normalizes_timezone_aware_timestamps_to_naive_utc():
+    csv = (
+        b"date,target\n"
+        b"2025-03-30T00:00:00+00:00,84.2\n"
+        b"2025-03-30T02:00:00+01:00,86.1\n"
+    )
+    forecaster = Mock()
+    forecaster.predict.return_value = pd.DataFrame(
+        [{"date": pd.Timestamp("2025-03-30T02:00:00"), "target_predicted": 87.0}]
+    )
+
+    with patch.object(server, "get_forecaster", return_value=forecaster):
+        response = client.post(
+            "/forecast/csv",
+            files={"file": ("history.csv", csv, "text/csv")},
+            data={
+                "datetime_col": "date",
+                "target_col": "target",
+                "forecast_horizon": "1",
+                "frequency": "h",
+            },
+        )
+
+    assert response.status_code == 200
+    received = forecaster.predict.call_args.args[0]
+    assert received["date"].tolist() == [
+        pd.Timestamp("2025-03-30T00:00:00"),
+        pd.Timestamp("2025-03-30T01:00:00"),
+    ]
+    assert received["date"].dt.tz is None
+
+
 def test_csv_upload_passes_covariates_and_panel_configuration():
     historical = b"date,target,store\n2025-01-01,84.2,A\n2025-01-02,86.1,A\n"
     past = b"date,temperature,store\n2025-01-01,12,A\n2025-01-02,13,A\n"

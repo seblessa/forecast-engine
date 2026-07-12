@@ -111,6 +111,25 @@ def _as_dataframe(
     return frame
 
 
+def _normalize_timestamps(
+    frame: pd.DataFrame | None, name: str, datetime_col: str
+) -> pd.DataFrame | None:
+    if frame is None:
+        return None
+
+    try:
+        timestamps = pd.to_datetime(frame[datetime_col], utc=True)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=f"{name} has invalid timestamps in column '{datetime_col}': {exc}",
+        ) from exc
+
+    normalized = frame.copy()
+    normalized[datetime_col] = timestamps.dt.tz_localize(None)
+    return normalized
+
+
 @app.post(
     "/forecast",
     response_model=ForecastResponse,
@@ -123,14 +142,22 @@ def forecast(request: ForecastRequest) -> ForecastResponse:
     if request.item_id_col:
         required.add(request.item_id_col)
 
-    data = _as_dataframe(request.data, "data", required)
+    data = _normalize_timestamps(
+        _as_dataframe(request.data, "data", required), "data", request.datetime_col
+    )
     covariate_columns = {request.datetime_col}
     if request.item_id_col:
         covariate_columns.add(request.item_id_col)
 
-    past = _as_dataframe(request.past_covariates, "past_covariates", covariate_columns)
-    future = _as_dataframe(
-        request.future_covariates, "future_covariates", covariate_columns
+    past = _normalize_timestamps(
+        _as_dataframe(request.past_covariates, "past_covariates", covariate_columns),
+        "past_covariates",
+        request.datetime_col,
+    )
+    future = _normalize_timestamps(
+        _as_dataframe(request.future_covariates, "future_covariates", covariate_columns),
+        "future_covariates",
+        request.datetime_col,
     )
 
     if request.engine == "chronos" and (past is not None or future is not None):
