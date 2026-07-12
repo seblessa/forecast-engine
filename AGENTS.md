@@ -19,6 +19,8 @@ cd ...` changes directory locally after the SSH session exits.
 
 ## Project conventions
 
+- Use the `git` command for repository operations, including sync, branches,
+  commits, and pushes. Do not use the GitHub CLI (`gh`).
 - Keep the REST layer small; forecasting behavior belongs to the public
   `chronos_forecaster` package.
 - Preserve the request and response contract documented in `README.md` and the

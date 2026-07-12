@@ -40,8 +40,16 @@ rede local. É possível alterar estes valores:
 HOST=127.0.0.1 PORT=9000 uv run python server.py
 ```
 
+Abre `http://localhost:8000` no browser. O servidor reencaminha automaticamente
+para o Swagger UI em `/docs`, onde podes testar todos os endpoints sem escrever
+código. Em `POST /forecast/csv`, seleciona um CSV, indica os nomes das colunas de
+tempo e valor, configura o horizonte e carrega em **Execute**. Para Chronos-2,
+podes também anexar CSVs separados com covariáveis passadas e futuras; todas as
+colunas adicionais desses ficheiros são usadas como variáveis.
+
 - Health check: `GET http://localhost:8000/health`
 - Previsão: `POST http://localhost:8000/forecast`
+- Importação CSV: `POST http://localhost:8000/forecast/csv`
 - Documentação interativa: `http://localhost:8000/docs`
 - Especificação OpenAPI: `http://localhost:8000/openapi.json`
 
@@ -83,6 +91,13 @@ O corpo aceita ainda:
 - `item_id_col` para várias séries
 - `random_state`
 - `past_covariates` e `future_covariates` com `engine: "chronos2"`
+
+O endpoint CSV oferece os mesmos controlos principais através de multipart form:
+`file`, `datetime_col`, `target_col`, `item_id_col`, `forecast_horizon`,
+`frequency`, `engine` e `random_state`. `past_covariates_file` e
+`future_covariates_file` são opcionais e exclusivos de Chronos-2. Os três CSVs
+devem usar os mesmos nomes para a coluna temporal e, em panel data, para a coluna
+de identificação da série.
 
 O schema completo e exemplos podem ser consultados em `/docs`. O serviço não
 inclui autenticação nem TLS e deve permanecer numa rede de confiança; não o

@@ -12,7 +12,8 @@ from typing import Any, Literal
 import pandas as pd
 import uvicorn
 from chronos_forecaster import ChronosForecaster
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -61,13 +62,28 @@ def get_forecaster(
 
 app = FastAPI(
     title="Forecast Engine",
-    description="Local REST interface for chronos_forecaster.",
+    summary="Time-series forecasting with Chronos",
+    description=(
+        "Generate forecasts with `chronos_forecaster` through JSON or upload a "
+        "CSV directly using **POST /forecast/csv**. Models are cached while the "
+        "server is running."
+    ),
     version="0.1.0",
+    openapi_tags=[
+        {"name": "Forecasts", "description": "Generate time-series forecasts."},
+        {"name": "System", "description": "Check service readiness."},
+    ],
 )
 _forecast_lock = Lock()
 
 
-@app.get("/health")
+@app.get("/", include_in_schema=False)
+def root() -> RedirectResponse:
+    """Open the interactive API documentation by default."""
+    return RedirectResponse(url="/docs")
+
+
+@app.get("/health", tags=["System"], summary="Check server readiness")
 def health() -> dict[str, Any]:
     """Report readiness without downloading a model."""
     return {
@@ -95,7 +111,12 @@ def _as_dataframe(
     return frame
 
 
-@app.post("/forecast", response_model=ForecastResponse)
+@app.post(
+    "/forecast",
+    response_model=ForecastResponse,
+    tags=["Forecasts"],
+    summary="Forecast from JSON observations",
+)
 def forecast(request: ForecastRequest) -> ForecastResponse:
     """Generate a point forecast and 80% prediction interval."""
     required = {request.datetime_col, request.target_col}
@@ -156,6 +177,66 @@ def forecast(request: ForecastRequest) -> ForecastResponse:
 
     predictions = json.loads(result.to_json(orient="records", date_format="iso"))
     return ForecastResponse(predictions=predictions)
+
+
+@app.post(
+    "/forecast/csv",
+    response_model=ForecastResponse,
+    tags=["Forecasts"],
+    summary="Upload a CSV and generate a forecast",
+    description=(
+        "Upload the historical target data and, for Chronos-2, optional past "
+        "and future covariate CSVs. Identify the timestamp, target, and optional "
+        "series ID columns, then execute the request directly from Swagger UI."
+    ),
+)
+def forecast_csv(
+    file: UploadFile = File(description="CSV containing timestamps and target values"),
+    past_covariates_file: UploadFile | None = File(
+        None, description="Optional CSV with historical Chronos-2 covariates"
+    ),
+    future_covariates_file: UploadFile | None = File(
+        None, description="Optional CSV with known future Chronos-2 covariates"
+    ),
+    datetime_col: str = Form("date", description="Timestamp column name"),
+    target_col: str = Form("target", description="Value column name"),
+    item_id_col: str = Form(
+        "", description="Series ID column; leave blank for one series"
+    ),
+    forecast_horizon: int = Form(24, gt=0, description="Future steps to predict"),
+    frequency: str = Form("h", description="Pandas frequency, for example h or D"),
+    engine: Literal["chronos", "chronos2"] = Form("chronos2"),
+    random_state: int = Form(42, description="Random seed"),
+) -> ForecastResponse:
+    """Convert an uploaded CSV into the regular forecast request."""
+    data = _read_csv(file, "file")
+    past_covariates = _read_csv(past_covariates_file, "past_covariates_file")
+    future_covariates = _read_csv(future_covariates_file, "future_covariates_file")
+
+    return forecast(
+        ForecastRequest(
+            data=data,
+            forecast_horizon=forecast_horizon,
+            datetime_col=datetime_col,
+            target_col=target_col,
+            item_id_col=item_id_col or None,
+            frequency=frequency,
+            random_state=random_state,
+            engine=engine,
+            past_covariates=past_covariates,
+            future_covariates=future_covariates,
+        )
+    )
+
+
+def _read_csv(upload: UploadFile | None, name: str) -> list[dict[str, Any]] | None:
+    if upload is None:
+        return None
+
+    try:
+        return pd.read_csv(upload.file).to_dict(orient="records")
+    except (UnicodeDecodeError, pd.errors.EmptyDataError, pd.errors.ParserError) as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid {name}: {exc}") from exc
 
 
 if __name__ == "__main__":

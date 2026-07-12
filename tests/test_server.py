@@ -1,9 +1,12 @@
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pandas as pd
 from fastapi.testclient import TestClient
 
 import server
+
+
+client = TestClient(server.app)
 
 
 class FakeForecaster:
@@ -31,7 +34,7 @@ def test_forecast_returns_json_records():
     }
 
     with patch.object(server, "get_forecaster", return_value=FakeForecaster()):
-        response = TestClient(server.app).post("/forecast", json=request)
+        response = client.post("/forecast", json=request)
 
     assert response.status_code == 200
     assert response.json() == {
@@ -65,7 +68,77 @@ def test_forecast_preserves_panel_item_ids():
     fake.predict = lambda *args, **kwargs: predictions
 
     with patch.object(server, "get_forecaster", return_value=fake):
-        response = TestClient(server.app).post("/forecast", json=request)
+        response = client.post("/forecast", json=request)
 
     assert response.status_code == 200
     assert [row["store"] for row in response.json()["predictions"]] == ["A", "B"]
+
+
+def test_root_redirects_to_docs():
+    response = client.get("/", follow_redirects=False)
+
+    assert response.status_code == 307
+    assert response.headers["location"] == "/docs"
+
+
+def test_csv_upload_builds_forecast_request():
+    csv = b"date,target\n2025-01-01T00:00:00,84.2\n2025-01-01T01:00:00,86.1\n"
+
+    with patch.object(server, "get_forecaster", return_value=FakeForecaster()):
+        response = client.post(
+            "/forecast/csv",
+            files={"file": ("history.csv", csv, "text/csv")},
+            data={
+                "datetime_col": "date",
+                "target_col": "target",
+                "forecast_horizon": "1",
+                "frequency": "h",
+                "engine": "chronos2",
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json()["predictions"][0]["target_predicted"] == 86.4
+
+
+def test_csv_upload_passes_covariates_and_panel_configuration():
+    historical = b"date,target,store\n2025-01-01,84.2,A\n2025-01-02,86.1,A\n"
+    past = b"date,temperature,store\n2025-01-01,12,A\n2025-01-02,13,A\n"
+    future = b"date,temperature,store\n2025-01-03,14,A\n"
+    result = pd.DataFrame(
+        [{"date": "2025-01-03", "target_predicted": 87, "store": "A"}]
+    )
+    forecaster = Mock()
+    forecaster.predict.return_value = result
+
+    with patch.object(server, "get_forecaster", return_value=forecaster):
+        response = client.post(
+            "/forecast/csv",
+            files={
+                "file": ("history.csv", historical, "text/csv"),
+                "past_covariates_file": ("past.csv", past, "text/csv"),
+                "future_covariates_file": ("future.csv", future, "text/csv"),
+            },
+            data={
+                "datetime_col": "date",
+                "target_col": "target",
+                "item_id_col": "store",
+                "forecast_horizon": "1",
+                "frequency": "D",
+                "engine": "chronos2",
+                "random_state": "7",
+            },
+        )
+
+    assert response.status_code == 200
+    call = forecaster.predict.call_args
+    assert list(call.kwargs["past_covariates_df"].columns) == [
+        "date",
+        "temperature",
+        "store",
+    ]
+    assert list(call.kwargs["future_covariates_df"].columns) == [
+        "date",
+        "temperature",
+        "store",
+    ]
