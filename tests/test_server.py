@@ -1,9 +1,13 @@
+from concurrent.futures import ThreadPoolExecutor
+from threading import Lock
+from time import sleep
 from unittest.mock import Mock, patch
 
 import pandas as pd
 from fastapi.testclient import TestClient
 
 import server
+from forecast_engine.core import ForecastResult
 
 
 client = TestClient(server.app)
@@ -47,6 +51,88 @@ def test_forecast_returns_json_records():
             }
         ]
     }
+
+
+def test_saas_forecast_rejects_missing_bearer_token(monkeypatch):
+    monkeypatch.setenv("SAAS_API_TOKEN", "test-token")
+    response = client.post(
+        "/v1/saas/forecast",
+        json={
+            "data": [{"date": "2025-01-01T00:00:00", "target": 84.2}],
+            "forecast_horizon": 1,
+        },
+    )
+
+    assert response.status_code == 401
+    assert response.headers["www-authenticate"] == "Bearer"
+
+
+def test_saas_forecast_reuses_json_contract(monkeypatch):
+    monkeypatch.setenv("SAAS_API_TOKEN", "test-token")
+    request = {
+        "data": [
+            {"date": "2025-01-01T00:00:00", "target": 84.2},
+            {"date": "2025-01-01T01:00:00", "target": 86.1},
+        ],
+        "forecast_horizon": 1,
+    }
+
+    with patch.object(server, "get_forecaster", return_value=FakeForecaster()):
+        response = client.post(
+            "/v1/saas/forecast",
+            headers={"Authorization": "Bearer test-token"},
+            json=request,
+        )
+
+    assert response.status_code == 200
+    assert response.json()["predictions"][0]["target_predicted"] == 86.4
+
+
+def test_saas_csv_rejects_missing_bearer_token(monkeypatch):
+    monkeypatch.setenv("SAAS_API_TOKEN", "test-token")
+    response = client.post(
+        "/v1/saas/forecast/csv",
+        files={"file": ("history.csv", b"date,target\n2025-01-01,84.2\n", "text/csv")},
+    )
+
+    assert response.status_code == 401
+
+
+def test_saas_routes_are_documented_with_bearer_auth():
+    schema = client.get("/openapi.json").json()
+
+    assert schema["paths"]["/v1/saas/forecast"]["post"]["security"]
+    assert schema["paths"]["/v1/saas/forecast/csv"]["post"]["security"]
+    assert "HTTPBearer" in schema["components"]["securitySchemes"]
+
+
+def test_forecasts_are_processed_serially():
+    active = 0
+    maximum_active = 0
+    state_lock = Lock()
+
+    class SerialForecaster:
+        def predict(self, data, **kwargs):
+            nonlocal active, maximum_active
+            with state_lock:
+                active += 1
+                maximum_active = max(maximum_active, active)
+            sleep(0.02)
+            with state_lock:
+                active -= 1
+            return pd.DataFrame(
+                [{"date": pd.Timestamp("2025-01-01"), "target_predicted": 1.0}]
+            )
+
+    request = server.ForecastRequest(
+        data=[{"date": "2025-01-01", "target": 1.0}], forecast_horizon=1
+    )
+    with patch.object(server, "get_forecaster", return_value=SerialForecaster()):
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            results = list(executor.map(server._run_forecast, [request, request]))
+
+    assert len(results) == 2
+    assert maximum_active == 1
 
 
 def test_forecast_preserves_panel_item_ids():
@@ -210,3 +296,133 @@ def test_csv_upload_passes_covariates_and_panel_configuration():
         "temperature",
         "store",
     ]
+
+
+def make_v2_result(targets=("dx", "dy")):
+    return ForecastResult(
+        predictions=pd.DataFrame(
+            [
+                {
+                    "timestamp": pd.Timestamp("2026-01-01T00:00:01"),
+                    "item_id": None,
+                    "target_name": target,
+                    "prediction": float(index + 1),
+                    "q_0.1": 0.1,
+                    "q_0.5": 0.5,
+                    "q_0.9": 0.9,
+                }
+                for index, target in enumerate(targets)
+            ]
+        ),
+        quantile_levels=(0.1, 0.5, 0.9),
+    )
+
+
+def test_v2_forecast_uses_stable_long_format_and_target_list():
+    engine = Mock()
+    engine.forecast.return_value = make_v2_result()
+    with patch.object(server, "forecast_engine", engine):
+        response = client.post(
+            "/v2/forecast",
+            json={
+                "data": [
+                    {"date": "2026-01-01T00:00:00Z", "dx": 1.0, "dy": 2.0},
+                    {"date": "2026-01-01T00:00:01Z", "dx": 1.1, "dy": 2.1},
+                ],
+                "target_cols": ["dx", "dy"],
+                "forecast_horizon": 1,
+                "frequency": "s",
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "predictions": [
+            {
+                "timestamp": "2026-01-01T00:00:01",
+                "item_id": None,
+                "target_name": "dx",
+                "prediction": 1.0,
+                "quantiles": {"0.1": 0.1, "0.5": 0.5, "0.9": 0.9},
+            },
+            {
+                "timestamp": "2026-01-01T00:00:01",
+                "item_id": None,
+                "target_name": "dy",
+                "prediction": 2.0,
+                "quantiles": {"0.1": 0.1, "0.5": 0.5, "0.9": 0.9},
+            },
+        ]
+    }
+    call = engine.forecast.call_args.kwargs
+    assert call["target_cols"] == ["dx", "dy"]
+    assert call["frequency"] == "s"
+
+
+def test_v2_forwards_covariates_and_runtime_controls():
+    engine = Mock()
+    engine.forecast.return_value = make_v2_result(("sales",))
+    with patch.object(server, "forecast_engine", engine):
+        response = client.post(
+            "/v2/forecast",
+            json={
+                "data": [
+                    {
+                        "date": "2026-01-01T00:00:00Z",
+                        "sales": 1.0,
+                        "temperature": 10.0,
+                    },
+                    {
+                        "date": "2026-01-01T01:00:00Z",
+                        "sales": 2.0,
+                        "temperature": 11.0,
+                    },
+                ],
+                "future_data": [
+                    {"date": "2026-01-01T02:00:00Z", "temperature": 12.0}
+                ],
+                "target_cols": ["sales"],
+                "forecast_horizon": 1,
+                "batch_size": 8,
+                "context_length": 64,
+                "cross_learning": True,
+                "quantile_levels": [0.2, 0.5, 0.8],
+            },
+        )
+
+    assert response.status_code == 200
+    call = engine.forecast.call_args.kwargs
+    assert call["future_data"]["temperature"].tolist() == [12.0]
+    assert call["batch_size"] == 8
+    assert call["context_length"] == 64
+    assert call["cross_learning"] is True
+    assert call["quantile_levels"] == [0.2, 0.5, 0.8]
+
+
+def test_v2_rejects_duplicate_targets():
+    response = client.post(
+        "/v2/forecast",
+        json={
+            "data": [{"date": "2026-01-01T00:00:00Z", "sales": 1.0}],
+            "target_cols": ["sales", "sales"],
+            "forecast_horizon": 1,
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_models_and_openapi_expose_the_new_contract_without_loading_models():
+    health = client.get("/health")
+    models = client.get("/models")
+    schema = client.get("/openapi.json").json()
+
+    assert health.status_code == 200
+    assert "chronos_forecasting_version" in health.json()
+    assert models.status_code == 200
+    assert {model["id"] for model in models.json()["models"]} == {
+        "chronos2",
+        "chronos-bolt-base",
+    }
+    assert "/v2/forecast" in schema["paths"]
+    assert "/models" in schema["paths"]

@@ -4,15 +4,16 @@ build-backend = "hatchling.build"
 
 [project]
 name = "forecast-engine"
-version = "0.1.0"
-description = "REST API for chronos_forecaster"
+version = "0.2.0"
+description = "Reusable forecasting core and REST API built on official Amazon Chronos"
 readme = "README.md"
 requires-python = ">=3.10,<3.14"
 dependencies = [
-    "chronos_forecaster>=0.2.2,<0.3",
+    "chronos-forecasting>=2.3.1,<2.4",
     "fastapi>=0.115,<1",
     "pandas>=2.2,<4",
     "python-multipart>=0.0.20,<1",
+    "torch>=2.2,<3",
     "uvicorn[standard]>=0.34,<1",
 ]
 
@@ -23,6 +24,7 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
+packages = ["forecast_engine"]
 include = ["server.py"]
 
 [tool.pytest.ini_options]

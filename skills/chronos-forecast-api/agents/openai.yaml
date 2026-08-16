@@ -1,4 +1,4 @@
 interface:
   display_name: "Chronos Forecast API"
-  short_description: "Generate forecasts through the local API"
-  default_prompt: "Use $chronos-forecast-api to generate a forecast from my time-series data."
+  short_description: "Generate forecasts through the Forecast Engine API"
+  default_prompt: "Use $chronos-forecast-api and POST /v2/forecast to generate a forecast from my time-series data."
