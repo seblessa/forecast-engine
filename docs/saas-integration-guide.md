@@ -1,6 +1,6 @@
 # Forecast Engine SaaS integration guide
 
-Status: ready for the SaaS/webapp backend to integrate, v1, 2026-08-13.
+Status: current public v1/v2 handoff for Forecasting Studio, 2026-08-17.
 
 This is the handoff document for the agent implementing the Forecast Studio
 webapp. It describes how the backend should call the protected forecasting
@@ -157,7 +157,7 @@ The response is:
 | `target_col` | string | no | Defaults to `target`. |
 | `item_id_col` | string or null | no | Set for panel/multiple-series data. |
 | `frequency` | string | no | Defaults to `h`; for example `D` for daily data. |
-| `random_state` | integer or null | no | Use a fixed value when reproducible requests are desired. |
+| `random_state` | integer or null | no | Retained for backward compatibility; currently ignored by the forecasting implementation. |
 | `engine` | `chronos` or `chronos2` | no | Defaults to `chronos2`. |
 | `past_covariates` | array of objects or null | no | Supported with `chronos2`. |
 | `future_covariates` | array of objects or null | no | Supported with `chronos2`. |
@@ -202,6 +202,13 @@ The stable response contains `timestamp`, `item_id`, `target_name`,
 the same endpoint and core path. The engine sends related targets jointly to
 Chronos 2; the SaaS backend does not need a Draw-specific route.
 
+V2 response timestamps are explicit UTC ISO 8601 values with a `Z` suffix, for
+example `2026-01-01T00:00:03Z`. Reuse the returned `timestamp` directly as the
+next request's input timestamp when appending predictions to the context; do
+not append `Z` manually or convert the timezone in the client. This is the
+expected round-trip behavior for sequential consumers such as Forecasting
+Studio Draw.
+
 ## CSV endpoint
 
 Use multipart form data:
@@ -237,6 +244,10 @@ Form fields and defaults:
 | `frequency` | string | `h` |
 | `engine` | `chronos` or `chronos2` | `chronos2` |
 | `random_state` | integer | `42` |
+
+The legacy `random_state` field is retained for backward compatibility and is
+currently ignored by the forecasting implementation. It does not guarantee
+reproducibility.
 
 Example:
 
@@ -317,8 +328,8 @@ security. Keep it on both JSON and CSV requests; do not use the default
   the forecast even if the response was lost. Do not blindly retry a timed-out
   `POST`; make retries an explicit product decision because a retry can run the
   same forecast twice.
-- Use `random_state` when the application needs repeatable results for the same
-  input, but do not treat it as an idempotency key.
+- The legacy `random_state` field is currently ignored; do not use it as a
+  reproducibility or idempotency mechanism.
 
 ## HTTP status handling
 

@@ -116,7 +116,7 @@ The response is stable long format and does not create dynamic fields such as
 {
   "predictions": [
     {
-      "timestamp": "2026-01-01T00:00:03",
+      "timestamp": "2026-01-01T00:00:03Z",
       "item_id": null,
       "target_name": "dx",
       "prediction": 0.9,
@@ -125,6 +125,12 @@ The response is stable long format and does not create dynamic fields such as
   ]
 }
 ```
+
+V2 response timestamps are explicit UTC ISO 8601 values with a `Z` suffix.
+Pass a returned `timestamp` directly into the next request when appending
+predictions to the context; the client must not append `Z` manually or convert
+the timezone. This supports sequential consumers such as Forecasting Studio
+Draw.
 
 Chronos 2 also accepts historical covariates as additional columns in
 `data`. Known future covariates belong in `future_data` and must have exactly

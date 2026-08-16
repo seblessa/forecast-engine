@@ -66,6 +66,10 @@ The complete JSON schema is the same as `POST /forecast`, including optional
 `datetime_col`, `target_col`, `item_id_col`, `random_state`,
 `past_covariates`, and `future_covariates` fields.
 
+For both legacy JSON and CSV contracts, `random_state` is retained for backward
+compatibility and is currently ignored by the forecasting implementation. It
+does not guarantee reproducibility.
+
 Response example:
 
 ```json
@@ -126,6 +130,11 @@ record has `timestamp`, `item_id`, `target_name`, `prediction`, and a
 `quantiles` object. `target_cols` can contain one target, two targets, or a
 larger generic target list; all use the same core path and related targets are
 sent jointly to Chronos 2.
+
+V2 response timestamps are explicit UTC ISO 8601 values with a `Z` suffix, for
+example `2026-01-01T00:00:03Z`. A consumer may reuse the returned timestamp
+directly as the next request's input timestamp when appending predictions to
+the context; it must not append `Z` manually or convert the timezone.
 
 ## Processing behavior
 

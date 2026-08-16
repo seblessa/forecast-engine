@@ -59,7 +59,7 @@ The response uses stable long format:
 {
   "predictions": [
     {
-      "timestamp": "2026-01-01T00:00:03",
+      "timestamp": "2026-01-01T00:00:03Z",
       "item_id": null,
       "target_name": "dx",
       "prediction": 0.9,
@@ -68,6 +68,11 @@ The response uses stable long format:
   ]
 }
 ```
+
+V2 response timestamps are explicit UTC ISO 8601 values with a `Z` suffix.
+Reuse a returned `timestamp` directly as the next request's input timestamp
+when building sequential context; do not append `Z` manually or convert the
+timezone in the client.
 
 Historical covariates are additional columns in `data`. Known future
 covariates go in `future_data`; do not invent future values and never include
