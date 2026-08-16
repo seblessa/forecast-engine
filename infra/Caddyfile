@@ -1,0 +1,21 @@
+{
+	auto_https off
+	admin off
+	storage file_system {
+		root /Users/seb/.local/share/caddy
+	}
+}
+
+http://:8080 {
+	bind 127.0.0.1
+
+	@saas path /v1/saas/forecast /v1/saas/forecast/csv /v2/saas/forecast
+
+	handle @saas {
+		reverse_proxy 127.0.0.1:8000
+	}
+
+	handle {
+		respond 404
+	}
+}

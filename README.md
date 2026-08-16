@@ -69,9 +69,12 @@ Private/local routes:
 - `GET /docs` and `GET /openapi.json` — interactive and machine-readable API docs.
 
 The existing production ingress publishes only the authenticated SaaS routes
-`POST /v1/saas/forecast` and `POST /v1/saas/forecast/csv` at
-`https://engine.forecasting-studio.com`. It does not publish the private
-documentation, health, legacy local, or v2 routes through the public tunnel.
+`POST /v1/saas/forecast`, `POST /v1/saas/forecast/csv`, and
+`POST /v2/saas/forecast` at `https://engine.forecasting-studio.com`. The
+public v2 route uses the same request and response contract as private
+`POST /v2/forecast`, with the existing bearer token added by the SaaS backend.
+The ingress does not publish the private documentation, health, model, legacy
+local, or private v2 routes.
 See the [SaaS API contract](docs/saas-api.md) and
 [deployment runbook](docs/saas-deployment.md).
 

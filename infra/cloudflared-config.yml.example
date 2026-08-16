@@ -1,0 +1,13 @@
+# Copy this file to the Mac Mini's private cloudflared configuration folder
+# after creating the named tunnel in Cloudflare. Replace both placeholders;
+# never commit the generated credentials JSON.
+tunnel: <TUNNEL_UUID>
+credentials-file: /Users/seb/.cloudflared/<TUNNEL_UUID>.json
+
+ingress:
+  - hostname: engine.forecasting-studio.com
+    service: http://127.0.0.1:8080
+  # Keep a catch-all route so no other hostname/path is accidentally published
+  # if the tunnel configuration is expanded later. Caddy performs the exact
+  # path allow-list for this hostname.
+  - service: http_status:404

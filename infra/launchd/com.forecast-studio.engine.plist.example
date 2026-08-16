@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.forecast-studio.engine</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/seb/Projects/forecast-engine/infra/launchd/start-engine.sh</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/seb/Projects/forecast-engine</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ProcessType</key>
+  <string>Interactive</string>
+  <key>StandardOutPath</key>
+  <string>/Users/seb/Library/Logs/forecast-studio-engine.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/seb/Library/Logs/forecast-studio-engine.error.log</string>
+</dict>
+</plist>

@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 from threading import Lock
 from time import sleep
 from unittest.mock import Mock, patch
@@ -103,6 +104,7 @@ def test_saas_routes_are_documented_with_bearer_auth():
 
     assert schema["paths"]["/v1/saas/forecast"]["post"]["security"]
     assert schema["paths"]["/v1/saas/forecast/csv"]["post"]["security"]
+    assert schema["paths"]["/v2/saas/forecast"]["post"]["security"]
     assert "HTTPBearer" in schema["components"]["securitySchemes"]
 
 
@@ -357,6 +359,95 @@ def test_v2_forecast_uses_stable_long_format_and_target_list():
     call = engine.forecast.call_args.kwargs
     assert call["target_cols"] == ["dx", "dy"]
     assert call["frequency"] == "s"
+
+
+def test_saas_v2_rejects_missing_bearer_token(monkeypatch):
+    monkeypatch.setenv("SAAS_API_TOKEN", "test-token")
+    response = client.post(
+        "/v2/saas/forecast",
+        json={
+            "data": [{"date": "2026-01-01T00:00:00Z", "dx": 1.0, "dy": 2.0}],
+            "target_cols": ["dx", "dy"],
+            "forecast_horizon": 1,
+        },
+    )
+
+    assert response.status_code == 401
+    assert response.headers["www-authenticate"] == "Bearer"
+
+
+def test_saas_v2_rejects_invalid_bearer_token(monkeypatch):
+    monkeypatch.setenv("SAAS_API_TOKEN", "test-token")
+    response = client.post(
+        "/v2/saas/forecast",
+        headers={"Authorization": "Bearer wrong-token"},
+        json={
+            "data": [{"date": "2026-01-01T00:00:00Z", "dx": 1.0, "dy": 2.0}],
+            "target_cols": ["dx", "dy"],
+            "forecast_horizon": 1,
+        },
+    )
+
+    assert response.status_code == 401
+
+
+def test_saas_v2_accepts_token_and_reuses_v2_core_contract(monkeypatch):
+    monkeypatch.setenv("SAAS_API_TOKEN", "test-token")
+    engine = Mock()
+    engine.forecast.return_value = make_v2_result()
+    request = {
+        "data": [
+            {"date": "2026-01-01T00:00:00Z", "dx": 1.0, "dy": 2.0},
+            {"date": "2026-01-01T00:00:01Z", "dx": 1.1, "dy": 2.1},
+        ],
+        "target_cols": ["dx", "dy"],
+        "forecast_horizon": 1,
+        "frequency": "s",
+    }
+
+    with patch.object(server, "forecast_engine", engine):
+        response = client.post(
+            "/v2/saas/forecast",
+            headers={"Authorization": "Bearer test-token"},
+            json=request,
+        )
+
+    assert response.status_code == 200
+    assert [row["target_name"] for row in response.json()["predictions"]] == [
+        "dx",
+        "dy",
+    ]
+    assert all(row["quantiles"] for row in response.json()["predictions"])
+    assert engine.forecast.call_args.kwargs["target_cols"] == ["dx", "dy"]
+
+
+def test_saas_v2_and_private_v2_share_the_same_handler():
+    public_route = next(
+        route
+        for route in server.v2_saas_router.routes
+        if route.path == "/v2/saas/forecast"
+    )
+
+    private_route = next(
+        route for route in server.app.routes if getattr(route, "path", None) == "/v2/forecast"
+    )
+    assert private_route.endpoint is server.forecast_v2
+    assert public_route.endpoint is server.forecast_v2
+
+
+def test_public_ingress_allowlist_publishes_only_authenticated_saas_paths():
+    caddyfile = (Path(__file__).parents[1] / "infra" / "Caddyfile").read_text()
+    matcher = next(
+        line.strip() for line in caddyfile.splitlines() if "@saas path" in line
+    )
+    paths = set(matcher.split()[2:])
+
+    assert paths == {
+        "/v1/saas/forecast",
+        "/v1/saas/forecast/csv",
+        "/v2/saas/forecast",
+    }
+    assert "respond 404" in caddyfile
 
 
 def test_v2_forwards_covariates_and_runtime_controls():

@@ -150,14 +150,21 @@ saas_router = APIRouter(
     tags=["SaaS"],
     dependencies=[Depends(require_saas_auth)],
 )
+v2_saas_router = APIRouter(
+    prefix="/v2/saas",
+    tags=["SaaS"],
+    dependencies=[Depends(require_saas_auth)],
+)
 
 app = FastAPI(
     title="Forecast Engine",
     summary="Time-series forecasting with official Amazon Chronos pipelines",
     description=(
         "Generate forecasts through the reusable Forecast Engine core. "
-        "Use **POST /v2/forecast** for new integrations; the original "
-        "`/forecast` and `/forecast/csv` contracts remain supported."
+        "Use **POST /v2/forecast** privately or **POST /v2/saas/forecast** "
+        "through the authenticated public ingress for new integrations; "
+        "the original `/forecast` and `/forecast/csv` contracts remain "
+        "supported."
     ),
     version="0.2.0",
     openapi_tags=[
@@ -464,6 +471,21 @@ def forecast_v2(request: V2ForecastRequest) -> V2ForecastResponse:
     )
 
 
+v2_saas_router.add_api_route(
+    "/forecast",
+    forecast_v2,
+    methods=["POST"],
+    response_model=V2ForecastResponse,
+    summary="Authenticated generic target-list forecast",
+    description=(
+        "Authenticated public-ingress adapter for the private generic v2 "
+        "forecast contract. It uses the same request validation, Forecast "
+        "Engine core, and stable long-format response."
+    ),
+    operation_id="saas_forecast_v2",
+)
+
+
 @app.post(
     "/forecast/csv",
     response_model=ForecastResponse,
@@ -556,6 +578,7 @@ saas_router.add_api_route(
     operation_id="saas_forecast_csv",
 )
 app.include_router(saas_router)
+app.include_router(v2_saas_router)
 
 
 def _read_csv(upload: UploadFile | None, name: str) -> list[dict[str, Any]] | None:

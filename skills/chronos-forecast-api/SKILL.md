@@ -102,6 +102,13 @@ Use `POST /forecast/csv` for local CSV files. Upload `file` and optionally
 `past_covariates_file` and `future_covariates_file`. All files must share the
 timestamp column and, for panel data, the item ID column.
 
+For Forecasting Studio's public server-to-server integration, use
+`POST https://engine.forecasting-studio.com/v2/saas/forecast` with
+`Authorization: Bearer <SAAS_API_TOKEN>`. It is the authenticated public
+adapter for the same v2 request and response contract; never put the token in
+browser code, URLs, Git, or logs. The public ingress also preserves the
+legacy `/v1/saas/forecast` and `/v1/saas/forecast/csv` routes.
+
 Legacy responses retain `target_predicted`, `lower_bound`, and `upper_bound`.
 Use v2 when dynamic target names and multiple related targets are needed.
 
