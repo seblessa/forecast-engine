@@ -32,6 +32,10 @@ class ForecastResult:
         quantile_columns = {level: f"q_{level}" for level in self.quantile_levels}
         for row in self.predictions.to_dict(orient="records"):
             timestamp = pd.Timestamp(row["timestamp"])
+            if timestamp.tzinfo is None:
+                timestamp = timestamp.tz_localize("UTC")
+            else:
+                timestamp = timestamp.tz_convert("UTC")
             item_id = row["item_id"]
             if item_id is not None and pd.isna(item_id):
                 item_id = None
@@ -44,7 +48,7 @@ class ForecastResult:
             }
             records.append(
                 {
-                    "timestamp": timestamp.isoformat(),
+                    "timestamp": timestamp.isoformat().replace("+00:00", "Z"),
                     "item_id": item_id,
                     "target_name": str(row["target_name"]),
                     "prediction": float(row["prediction"]),

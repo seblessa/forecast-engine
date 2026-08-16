@@ -341,14 +341,14 @@ def test_v2_forecast_uses_stable_long_format_and_target_list():
     assert response.json() == {
         "predictions": [
             {
-                "timestamp": "2026-01-01T00:00:01",
+                "timestamp": "2026-01-01T00:00:01Z",
                 "item_id": None,
                 "target_name": "dx",
                 "prediction": 1.0,
                 "quantiles": {"0.1": 0.1, "0.5": 0.5, "0.9": 0.9},
             },
             {
-                "timestamp": "2026-01-01T00:00:01",
+                "timestamp": "2026-01-01T00:00:01Z",
                 "item_id": None,
                 "target_name": "dy",
                 "prediction": 2.0,
@@ -418,6 +418,7 @@ def test_saas_v2_accepts_token_and_reuses_v2_core_contract(monkeypatch):
         "dy",
     ]
     assert all(row["quantiles"] for row in response.json()["predictions"])
+    assert all(row["timestamp"].endswith("Z") for row in response.json()["predictions"])
     assert engine.forecast.call_args.kwargs["target_cols"] == ["dx", "dy"]
 
 

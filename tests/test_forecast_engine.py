@@ -98,6 +98,65 @@ def test_python_api_supports_one_target_and_forwards_request_options():
     assert call["freq"] == "h"
 
 
+def test_to_records_serializes_utc_explicitly():
+    engine, _, _ = make_engine()
+
+    result = engine.forecast(
+        data=make_data(targets=["dx", "dy"]),
+        target_cols=["dx", "dy"],
+        forecast_horizon=1,
+        frequency="h",
+    )
+
+    records = result.to_records()
+    assert {record["timestamp"] for record in records} == {
+        "2026-01-01T03:00:00Z"
+    }
+
+
+def test_v2_timestamp_round_trip_is_accepted_without_manual_timezone_changes():
+    engine, _, _ = make_engine()
+    context = make_data(targets=["dx", "dy"])
+
+    first = engine.forecast(
+        data=context,
+        target_cols=["dx", "dy"],
+        forecast_horizon=1,
+        frequency="h",
+    )
+    first_records = first.to_records()
+    returned_timestamp = first_records[0]["timestamp"]
+    predictions = {
+        record["target_name"]: record["prediction"] for record in first_records
+    }
+    next_context = pd.concat(
+        [
+            context,
+            pd.DataFrame(
+                [
+                    {
+                        "date": returned_timestamp,
+                        "dx": predictions["dx"],
+                        "dy": predictions["dy"],
+                    }
+                ]
+            ),
+        ],
+        ignore_index=True,
+    )
+
+    assert returned_timestamp == "2026-01-01T03:00:00Z"
+    second = engine.forecast(
+        data=next_context,
+        target_cols=["dx", "dy"],
+        forecast_horizon=1,
+        frequency="h",
+    )
+
+    assert len(second.to_records()) == 2
+    assert {record["target_name"] for record in second.to_records()} == {"dx", "dy"}
+
+
 def test_multivariate_targets_are_sent_in_one_native_call():
     targets = [f"target_{index}" for index in range(40)]
     engine, pipeline, _ = make_engine()
