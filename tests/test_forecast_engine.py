@@ -276,6 +276,25 @@ def test_invalid_requests_fail_with_actionable_validation_errors(kwargs, message
         engine.forecast(**base)
 
 
+def test_invalid_frequency_has_a_sanitized_chained_error():
+    engine, _, _ = make_engine()
+    invalid_frequency = "not-a-frequency"
+
+    with pytest.raises(ForecastValidationError) as exc_info:
+        engine.forecast(
+            data=make_data(),
+            target_cols=["sales"],
+            forecast_horizon=1,
+            frequency=invalid_frequency,
+        )
+
+    error = exc_info.value
+    assert str(error) == f"Unsupported forecast frequency: '{invalid_frequency}'"
+    assert isinstance(error.__cause__, (TypeError, ValueError))
+    assert "ValueError" not in str(error)
+    assert "KeyError" not in str(error)
+
+
 def test_future_timestamps_must_match_the_requested_horizon():
     engine, _, _ = make_engine()
     future = pd.DataFrame(

@@ -201,7 +201,9 @@ class ForecastEngine:
         try:
             pd.tseries.frequencies.to_offset(frequency)
         except (TypeError, ValueError) as exc:
-            raise ForecastValidationError(f"Invalid frequency '{frequency}': {exc}") from exc
+            raise ForecastValidationError(
+                f"Unsupported forecast frequency: '{frequency}'"
+            ) from exc
         if not isinstance(batch_size, int) or isinstance(batch_size, bool) or batch_size <= 0:
             raise ForecastValidationError("batch_size must be a positive integer")
         if context_length is not None and (

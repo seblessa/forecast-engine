@@ -245,6 +245,23 @@ def test_forecast_rejects_invalid_timestamp_and_duplicate_targets(monkeypatch):
     assert duplicate_targets.status_code == 422
 
 
+def test_forecast_sanitizes_invalid_frequency_errors(monkeypatch):
+    monkeypatch.setenv("SAAS_API_TOKEN", "test-token")
+    invalid_frequency = "not-a-frequency"
+
+    response = client.post(
+        "/forecast",
+        headers={"Authorization": "Bearer test-token"},
+        json=request(targets=["dx"], frequency=invalid_frequency),
+    )
+
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert detail == f"Unsupported forecast frequency: '{invalid_frequency}'"
+    assert "ValueError" not in detail
+    assert "KeyError" not in detail
+
+
 def test_final_request_rejects_removed_fields(monkeypatch):
     monkeypatch.setenv("SAAS_API_TOKEN", "test-token")
     for field in (
