@@ -509,7 +509,9 @@ class ForecastEngine:
                 f"{name} is missing datetime column '{datetime_col}'"
             )
         try:
-            timestamps = pd.to_datetime(frame[datetime_col], utc=True, errors="raise")
+            timestamps = pd.to_datetime(
+                frame[datetime_col], utc=True, errors="raise", format="mixed"
+            )
         except (TypeError, ValueError) as exc:
             raise ForecastValidationError(
                 f"{name} has invalid timestamps in column '{datetime_col}': {exc}"

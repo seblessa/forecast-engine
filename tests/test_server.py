@@ -224,6 +224,57 @@ def test_forecast_round_trip_accepts_returned_timestamp_without_client_changes(
     assert received["date"].iloc[-1] == pd.Timestamp("2026-01-01T00:00:02")
 
 
+def test_forecast_round_trip_accepts_literal_timestamp_after_date_only_history(
+    monkeypatch,
+):
+    monkeypatch.setenv("SAAS_API_TOKEN", "test-token")
+    service = Mock()
+    service.forecast.side_effect = [
+        make_result(("sales",), start="2026-01-04T00:00:00"),
+        make_result(("sales",), start="2026-01-05T00:00:00"),
+    ]
+    initial_data = [
+        {"date": "2026-01-01", "sales": 1},
+        {"date": "2026-01-02", "sales": 2},
+        {"date": "2026-01-03", "sales": 3},
+    ]
+    payload = request(
+        targets=["sales"],
+        data=initial_data,
+        frequency="D",
+        model="chronos2",
+    )
+
+    with patch.object(api, "forecast_service", service):
+        first_response = client.post(
+            "/forecast",
+            headers={"Authorization": "Bearer test-token"},
+            json=payload,
+        )
+        first_prediction = first_response.json()["predictions"][0]
+        second_payload = {
+            **payload,
+            "data": initial_data
+            + [
+                {
+                    "date": first_prediction["timestamp"],
+                    "sales": first_prediction["prediction"],
+                }
+            ],
+        }
+        second_response = client.post(
+            "/forecast",
+            headers={"Authorization": "Bearer test-token"},
+            json=second_payload,
+        )
+
+    assert first_response.status_code == 200
+    assert first_prediction["timestamp"] == "2026-01-04T00:00:00Z"
+    assert second_response.status_code == 200
+    received = service.forecast.call_args_list[1].kwargs["data"]
+    assert received["date"].iloc[-1] == pd.Timestamp("2026-01-04")
+
+
 def test_forecast_rejects_invalid_timestamp_and_duplicate_targets(monkeypatch):
     monkeypatch.setenv("SAAS_API_TOKEN", "test-token")
 

@@ -157,6 +157,48 @@ def test_timestamp_round_trip_is_accepted_without_manual_timezone_changes():
     assert {record["target_name"] for record in second.to_records()} == {"dx", "dy"}
 
 
+def test_timestamp_round_trip_accepts_date_only_history_and_literal_timestamp():
+    engine, _, _ = make_engine()
+    context = pd.DataFrame(
+        {
+            "date": ["2026-01-01", "2026-01-02", "2026-01-03"],
+            "sales": [1.0, 2.0, 3.0],
+        }
+    )
+
+    first = engine.forecast(
+        data=context,
+        target_cols=["sales"],
+        forecast_horizon=1,
+        frequency="D",
+    )
+    first_prediction = first.to_records()[0]
+    next_context = pd.concat(
+        [
+            context,
+            pd.DataFrame(
+                [
+                    {
+                        "date": first_prediction["timestamp"],
+                        "sales": first_prediction["prediction"],
+                    }
+                ]
+            ),
+        ],
+        ignore_index=True,
+    )
+
+    assert first_prediction["timestamp"] == "2026-01-04T00:00:00Z"
+    second = engine.forecast(
+        data=next_context,
+        target_cols=["sales"],
+        forecast_horizon=1,
+        frequency="D",
+    )
+
+    assert len(second.to_records()) == 1
+
+
 def test_multivariate_targets_are_sent_in_one_native_call():
     targets = [f"target_{index}" for index in range(40)]
     engine, pipeline, _ = make_engine()

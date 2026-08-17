@@ -153,7 +153,9 @@ def _normalize_timestamps(
         return None
 
     try:
-        timestamps = pd.to_datetime(frame[datetime_col], utc=True, errors="raise")
+        timestamps = pd.to_datetime(
+            frame[datetime_col], utc=True, errors="raise", format="mixed"
+        )
     except (TypeError, ValueError) as exc:
         raise HTTPException(
             status_code=422,
