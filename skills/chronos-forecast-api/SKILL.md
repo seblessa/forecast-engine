@@ -55,6 +55,7 @@ curl --fail-with-body \
   -X POST 'https://engine.forecasting-studio.com/forecast' \
   -H 'Authorization: Bearer <SAAS_API_TOKEN>' \
   -H 'Content-Type: application/json' \
+  -H 'User-Agent: ForecastStudio-SaaS/1.0' \
   -d '{
     "data": [
       {"date":"2026-01-01T00:00:00Z","dx":1.2,"dy":0.4},

@@ -11,12 +11,14 @@ operation. This document contains no token or other secret.
 POST https://engine.forecasting-studio.com/forecast
 Authorization: Bearer <existing token>
 Content-Type: application/json
+User-Agent: ForecastStudio-SaaS/1.0
 ```
 
 The call is server-to-server. Store the token in the Forecasting Studio
 backend secret manager. The browser must never receive it, include it in a
 request, or put it in a URL. The Engine keeps the same `SAAS_API_TOKEN`
-environment variable and token value.
+environment variable and token value. Send the stable backend User-Agent shown
+above on requests through the public Cloudflare ingress.
 
 ## Single target
 
