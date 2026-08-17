@@ -141,22 +141,21 @@ Read the document that owns the question. Other documents should link to it inst
 
 # Repository agent instructions
 
-## Initial Mac Mini sync
+## Local repository sync
 
-Before starting every task, update the checkout on the Mac Mini:
+Before starting work, confirm the current branch and inspect the working tree.
+Preserve unrelated local changes. If the working tree is clean and the branch is
+the expected one, update from the origin while already on the deployment host:
 
 ```bash
-ssh sebs-macmini 'cd /Users/seb/Projects/forecast-engine && git pull'
+git pull --ff-only
 ```
 
-If the pull reports conflicts, inspect the remote working tree, understand both
-sides, and resolve the conflicts without discarding either intentional change.
-Complete the merge or rebase and run the relevant checks before proceeding. If
-the intent cannot be determined safely, stop and ask the user instead of deleting
-changes. Never use `reset --hard` or force-push to resolve a sync problem.
-
-The `cd` must remain inside the quoted SSH command; running `ssh sebs-macmini &&
-cd ...` changes directory locally after the SSH session exits.
+If the pull reports conflicts, inspect both sides and resolve them without
+discarding intentional changes. Complete the merge or rebase and run the
+relevant checks before proceeding. If the intent cannot be determined safely,
+stop and ask the user instead of deleting changes. Never use `reset --hard` or
+force-push to solve a sync problem.
 
 ## Project conventions
 

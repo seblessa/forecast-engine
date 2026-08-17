@@ -23,7 +23,7 @@ PORT=8000
 ```
 
 The launchd script sources the private file
-`/Users/seb/.config/forecast-engine.env`, which must contain
+`$HOME/.config/forecast-engine.env`, which must contain
 `SAAS_API_TOKEN=<secret>` with restrictive file permissions. The token remains
 unchanged across deployments.
 
@@ -34,12 +34,16 @@ The Caddy process uses label `com.forecast-studio.caddy`; the tunnel uses
 
 ## Caddy boundary
 
-The tracked [Caddyfile](../infra/Caddyfile) binds only to `127.0.0.1:8080`:
+The tracked [Caddyfile](../infra/Caddyfile) binds only to `127.0.0.1:8080` and
+uses Caddy's supported `{$HOME}` substitution for its local storage path:
 
 ```text
 POST /forecast  →  127.0.0.1:8000
 everything else → 404
 ```
+
+`HOME` is the existing user environment value; no deployment-specific variable
+is added for this path.
 
 FastAPI still validates the bearer token. Caddy is an additional path filter,
 not the authentication layer. The FastAPI port is never published directly.
@@ -51,7 +55,7 @@ describes the hostname and service target. The active machine-specific file is
 intentionally external at:
 
 ```text
-/Users/seb/.cloudflared/config.yml
+$HOME/.cloudflared/config.yml
 ```
 
 It points `engine.forecasting-studio.com` to
@@ -61,18 +65,19 @@ must remain outside Git. A Caddy path change does not require a tunnel restart.
 
 ## Restart and inspect
 
-After application code or dependency changes:
+Run these commands on the deployment host from the repository root. After
+application code or dependency changes:
 
 ```bash
-ssh sebs-macmini 'cd /Users/seb/Projects/forecast-engine && git pull'
-ssh sebs-macmini 'cd /Users/seb/Projects/forecast-engine && uv sync --locked'
-ssh sebs-macmini 'launchctl kickstart -k gui/$(id -u)/com.forecast-studio.engine'
+git pull --ff-only
+uv sync --locked
+launchctl kickstart -k gui/$(id -u)/com.forecast-studio.engine
 ```
 
 After changing `infra/Caddyfile`, restart Caddy as well:
 
 ```bash
-ssh sebs-macmini 'launchctl kickstart -k gui/$(id -u)/com.forecast-studio.caddy'
+launchctl kickstart -k gui/$(id -u)/com.forecast-studio.caddy
 ```
 
 Do not create a second server or change port `8000`, Caddy port `8080`,

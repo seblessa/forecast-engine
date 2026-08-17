@@ -9,12 +9,12 @@
     <string>/opt/homebrew/bin/caddy</string>
     <string>run</string>
     <string>--config</string>
-    <string>/Users/seb/Projects/forecast-engine/infra/Caddyfile</string>
+    <string>&lt;REPO_ROOT&gt;/infra/Caddyfile</string>
     <string>--adapter</string>
     <string>caddyfile</string>
   </array>
   <key>WorkingDirectory</key>
-  <string>/Users/seb/Projects/forecast-engine</string>
+  <string>&lt;REPO_ROOT&gt;</string>
   <key>RunAtLoad</key>
   <true/>
   <key>KeepAlive</key>
@@ -22,8 +22,8 @@
   <key>ProcessType</key>
   <string>Interactive</string>
   <key>StandardOutPath</key>
-  <string>/Users/seb/Library/Logs/forecast-studio-caddy.log</string>
+  <string>&lt;USER_HOME&gt;/Library/Logs/forecast-studio-caddy.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/seb/Library/Logs/forecast-studio-caddy.error.log</string>
+  <string>&lt;USER_HOME&gt;/Library/Logs/forecast-studio-caddy.error.log</string>
 </dict>
 </plist>

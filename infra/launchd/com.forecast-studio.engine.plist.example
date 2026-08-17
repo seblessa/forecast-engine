@@ -6,10 +6,10 @@
   <string>com.forecast-studio.engine</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/Users/seb/Projects/forecast-engine/infra/launchd/start-engine.sh</string>
+    <string>&lt;REPO_ROOT&gt;/infra/launchd/start-engine.sh</string>
   </array>
   <key>WorkingDirectory</key>
-  <string>/Users/seb/Projects/forecast-engine</string>
+  <string>&lt;REPO_ROOT&gt;</string>
   <key>RunAtLoad</key>
   <true/>
   <key>KeepAlive</key>
@@ -17,8 +17,8 @@
   <key>ProcessType</key>
   <string>Interactive</string>
   <key>StandardOutPath</key>
-  <string>/Users/seb/Library/Logs/forecast-studio-engine.log</string>
+  <string>&lt;USER_HOME&gt;/Library/Logs/forecast-studio-engine.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/seb/Library/Logs/forecast-studio-engine.error.log</string>
+  <string>&lt;USER_HOME&gt;/Library/Logs/forecast-studio-engine.error.log</string>
 </dict>
 </plist>

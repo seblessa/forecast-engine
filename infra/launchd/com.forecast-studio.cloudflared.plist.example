@@ -9,7 +9,7 @@
     <string>/opt/homebrew/bin/cloudflared</string>
     <string>tunnel</string>
     <string>--config</string>
-    <string>/Users/seb/.cloudflared/config.yml</string>
+    <string>&lt;USER_HOME&gt;/.cloudflared/config.yml</string>
     <string>run</string>
     <string>&lt;TUNNEL_UUID&gt;</string>
   </array>
@@ -20,8 +20,8 @@
   <key>ProcessType</key>
   <string>Interactive</string>
   <key>StandardOutPath</key>
-  <string>/Users/seb/Library/Logs/forecast-studio-cloudflared.log</string>
+  <string>&lt;USER_HOME&gt;/Library/Logs/forecast-studio-cloudflared.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/seb/Library/Logs/forecast-studio-cloudflared.error.log</string>
+  <string>&lt;USER_HOME&gt;/Library/Logs/forecast-studio-cloudflared.error.log</string>
 </dict>
 </plist>

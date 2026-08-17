@@ -2,7 +2,7 @@
 	auto_https off
 	admin off
 	storage file_system {
-		root /Users/seb/.local/share/caddy
+		root {$HOME}/.local/share/caddy
 	}
 }
 

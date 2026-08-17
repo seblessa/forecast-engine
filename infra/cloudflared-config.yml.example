@@ -2,7 +2,7 @@
 # after creating the named tunnel in Cloudflare. Replace both placeholders;
 # never commit the generated credentials JSON.
 tunnel: <TUNNEL_UUID>
-credentials-file: /Users/seb/.cloudflared/<TUNNEL_UUID>.json
+credentials-file: <USER_HOME>/.cloudflared/<TUNNEL_UUID>.json
 
 ingress:
   - hostname: engine.forecasting-studio.com
