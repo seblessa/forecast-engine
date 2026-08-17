@@ -9,8 +9,8 @@ permissions:
   contents: read
 
 jobs:
-  build:
-    name: build
+  release-build:
+    name: release-build
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -146,9 +146,9 @@ jobs:
           path: dist/
           if-no-files-found: error
 
-  publish:
-    name: publish
-    needs: build
+  release-publish:
+    name: release-publish
+    needs: release-build
     runs-on: ubuntu-latest
     environment:
       name: pypi
