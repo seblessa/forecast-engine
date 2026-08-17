@@ -27,6 +27,7 @@ from .schemas import (
 
 
 logger = logging.getLogger(__name__)
+PACKAGE_VERSION = version("forecast-engine")
 
 forecast_service = ForecastEngine(
     device=os.getenv("FORECAST_DEVICE"),
@@ -70,7 +71,7 @@ app = FastAPI(
         "The authenticated `POST /forecast` endpoint accepts structured records "
         "and returns a stable long-format response."
     ),
-    version="0.2.0",
+    version=PACKAGE_VERSION,
     openapi_tags=[
         {
             "name": "Forecasts",
@@ -96,7 +97,7 @@ def health() -> dict[str, Any]:
     """Report readiness without downloading a model."""
     return {
         "status": "ok",
-        "forecast_engine_version": version("forecast-engine"),
+        "forecast_engine_version": PACKAGE_VERSION,
         "chronos_forecasting_version": version("chronos-forecasting"),
         "loaded_models": forecast_service.pipeline_manager.loaded_models,
         "cached_pipelines": forecast_service.pipeline_manager.cached_pipeline_count,

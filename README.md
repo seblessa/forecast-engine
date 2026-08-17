@@ -30,14 +30,16 @@ The official Chronos package provides the forecasting models. Forecast Engine ad
 
 ## Quick start
 
-The package is prepared for PyPI but is **not published there yet**.
-
-For now, clone the repository and install the locked environment:
+Install the package from PyPI:
 
 ```bash
-git clone https://github.com/seblessa/forecast-engine.git
-cd forecast-engine
-uv sync --locked
+pip install forecast-engine
+```
+
+To install the optional FastAPI server too:
+
+```bash
+pip install "forecast-engine[server]"
 ```
 
 ### Python
@@ -130,21 +132,25 @@ The README intentionally stays small. More detailed documentation lives in [`doc
 - [Forecasting Studio integration](docs/forecast-studio-integration.md)
 - [Deployment](docs/deployment.md)
 - [Mac Mini bootstrap](docs/mac-mini-bootstrap.md)
+- [Development and releases](docs/development.md)
 
 ## Development
 
+For a source checkout and the locked development environment:
+
 ```bash
+git clone https://github.com/seblessa/forecast-engine.git
+cd forecast-engine
 uv sync --locked
 uv run pytest -W error
-uv build
+uv build --no-sources
 ```
 
-`uv build` produces both a wheel and a source distribution. A future PyPI release will support:
+The command `uv build --no-sources` produces both a wheel and a source distribution. See the
+[development and release workflow](docs/development.md) before changing the
+stable branch.
 
-```bash
-pip install forecast-engine
-pip install "forecast-engine[server]"
-```
+The normal flow is `dev` → tests/build → approval → `main` → PyPI.
 
 ## License
 

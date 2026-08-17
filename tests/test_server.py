@@ -326,6 +326,8 @@ def test_root_redirects_to_docs_and_private_system_routes_are_local_routes():
     assert root_response.status_code == 307
     assert root_response.headers["location"] == "/docs"
     assert health_response.status_code == 200
+    assert health_response.json()["forecast_engine_version"] == api.PACKAGE_VERSION
+    assert client.get("/openapi.json").json()["info"]["version"] == api.PACKAGE_VERSION
     assert "chronos_forecasting_version" in health_response.json()
     assert "cached_pipelines" in health_response.json()
     assert models_response.status_code == 200

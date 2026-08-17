@@ -157,6 +157,19 @@ relevant checks before proceeding. If the intent cannot be determined safely,
 stop and ask the user instead of deleting changes. Never use `reset --hard` or
 force-push to solve a sync problem.
 
+## Branch and release policy
+
+- `dev` is the normal development branch.
+- `main` is exclusively the stable release branch.
+- Agents normally work, commit, and push on `dev`.
+- `main` may be modified only after the user explicitly authorizes the release.
+- An ordinary request to commit or push means `dev`; it does not authorize `main`.
+- Every commit reaching `main` must represent a new package release.
+- Every commit reaching `main` must contain a PyPI version that has never been published.
+- Before moving work to `main`, tests and the package build must pass.
+- Never force-push or delete `main`.
+- Never reuse a PyPI version, even if an earlier release attempt failed.
+
 ## Project conventions
 
 - Use the `git` command for repository operations, including sync, branches,

@@ -4,14 +4,14 @@ build-backend = "hatchling.build"
 
 [project]
 name = "forecast-engine"
-version = "0.2.0"
+version = "1.0.0"
 description = "Reusable time-series forecasting package with an authenticated FastAPI service"
 readme = "README.md"
 requires-python = ">=3.10,<3.14"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",

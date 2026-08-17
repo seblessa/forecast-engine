@@ -1,0 +1,169 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v9
+        with:
+          enable-cache: true
+
+      - name: Install locked environment
+        run: uv sync --locked --all-extras --dev
+
+      - name: Read package version
+        id: package-version
+        run: echo "version=$(uv version --short)" >> "$GITHUB_OUTPUT"
+
+      - name: Ensure version is not already on PyPI
+        env:
+          VERSION: ${{ steps.package-version.outputs.version }}
+        run: |
+          set -euo pipefail
+          url="https://pypi.org/pypi/forecast-engine/${VERSION}/json"
+          if ! status="$(curl --silent --show-error --location \
+            --connect-timeout 10 --max-time 30 \
+            --output /dev/null --write-out '%{http_code}' "$url")"; then
+            echo "Could not verify PyPI version availability: $url" >&2
+            exit 1
+          fi
+
+          case "$status" in
+            404)
+              echo "PyPI version ${VERSION} is available."
+              ;;
+            200)
+              echo "PyPI version ${VERSION} already exists; refusing to publish." >&2
+              exit 1
+              ;;
+            *)
+              echo "Unexpected PyPI response ${status}; refusing to publish." >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Run tests
+        run: uv run pytest -W error
+
+      - name: Build distributions
+        run: uv build --no-sources
+
+      - name: Validate distributions
+        env:
+          VERSION: ${{ steps.package-version.outputs.version }}
+        run: |
+          uv run python - <<'PY'
+          import os
+          import tarfile
+          import zipfile
+          from pathlib import Path, PurePosixPath
+
+          expected_version = os.environ["VERSION"]
+          artifacts = sorted(Path("dist").iterdir())
+          wheels = [path for path in artifacts if path.suffix == ".whl"]
+          sdists = [path for path in artifacts if path.name.endswith(".tar.gz")]
+          assert len(wheels) == 1, f"expected one wheel, found {wheels}"
+          assert len(sdists) == 1, f"expected one sdist, found {sdists}"
+
+          def metadata(path: Path) -> tuple[list[str], str]:
+              if path.suffix == ".whl":
+                  with zipfile.ZipFile(path) as archive:
+                      names = archive.namelist()
+                      name = next(
+                          name for name in names if name.endswith(".dist-info/METADATA")
+                      )
+                      return names, archive.read(name).decode()
+              with tarfile.open(path, "r:gz") as archive:
+                  names = archive.getnames()
+                  name = next(name for name in names if name.endswith("/PKG-INFO"))
+                  return names, archive.extractfile(name).read().decode()
+
+          for artifact in (wheels[0], sdists[0]):
+              names, contents = metadata(artifact)
+              assert f"Version: {expected_version}\n" in contents
+              assert "Classifier: Development Status :: 5 - Production/Stable\n" in contents
+              assert "License-Expression: Apache-2.0\n" in contents
+              assert "Requires-Python: <3.14,>=3.10\n" in contents
+              assert "Provides-Extra: server\n" in contents
+              assert "pip install forecast-engine" in contents
+              assert "The package is prepared for PyPI" not in contents
+              assert "future PyPI release" not in contents
+              assert any(PurePosixPath(name).name == "LICENSE" for name in names)
+              assert not any("dataset" in name.lower() for name in names)
+              assert not any(
+                  PurePosixPath(name).name.lower()
+                  in {".env", "credentials.json", "secrets.json"}
+                  for name in names
+              )
+
+          print(f"Validated {wheels[0].name} and {sdists[0].name}")
+          PY
+
+      - name: Smoke-test wheel
+        env:
+          VERSION: ${{ steps.package-version.outputs.version }}
+        run: |
+          set -euo pipefail
+          wheel="$(find dist -maxdepth 1 -type f -name '*.whl' -print -quit)"
+          venv="$RUNNER_TEMP/forecast-engine-wheel"
+          uv venv "$venv" --python 3.12
+          uv pip install --python "$venv/bin/python" "$wheel"
+          cd "$RUNNER_TEMP"
+          VERSION="$VERSION" "$venv/bin/python" - <<'PY'
+          import os
+          from importlib.metadata import version
+
+          from forecast_engine import ForecastEngine
+
+          assert version("forecast-engine") == os.environ["VERSION"]
+          assert ForecastEngine is not None
+          PY
+
+      - name: Upload distributions
+        uses: actions/upload-artifact@v7
+        with:
+          name: distributions
+          path: dist/
+          if-no-files-found: error
+
+  publish:
+    name: publish
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/forecast-engine
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Download distributions
+        uses: actions/download-artifact@v8
+        with:
+          name: distributions
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
