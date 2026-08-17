@@ -160,8 +160,12 @@ force-push to solve a sync problem.
 ## Branch and release policy
 
 - `dev` is the normal development branch.
+- `dev` may accumulate multiple commits and completed tasks; finishing a task is not a release.
 - `main` is exclusively the stable release branch.
 - Agents normally work, commit, and push on `dev`.
+- Committing or pushing on `dev` never moves anything to `main`; do not update `main` merely because a task is complete.
+- Until the user explicitly authorizes a release, changes normally remain in `dev`.
+- Only after that authorization may the accumulated state of `dev` be promoted to `main`.
 - `main` may be modified only after the user explicitly authorizes the release.
 - An ordinary request to commit or push means `dev`; it does not authorize `main`.
 - Every commit reaching `main` must represent a new package release.
