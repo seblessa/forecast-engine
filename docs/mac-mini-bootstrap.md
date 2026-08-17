@@ -36,9 +36,10 @@ cloudflared tunnel route dns forecast-engine engine.forecasting-studio.com
 ```
 
 Copy [the repository template](../infra/cloudflared-config.yml.example) to
-`$HOME/.cloudflared/config.yml`, replace the tunnel UUID, and retain the
-generated credentials JSON only in that private directory. The service target
-must be `http://127.0.0.1:8080`.
+`$HOME/.cloudflared/config.yml`, replace both `<USER_HOME>` and
+`<TUNNEL_UUID>` in the copied template, and retain the generated credentials
+JSON only in that private directory. The service target must be
+`http://127.0.0.1:8080`.
 
 ## Services
 
