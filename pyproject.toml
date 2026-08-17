@@ -8,6 +8,8 @@ version = "0.2.0"
 description = "Reusable time-series forecasting package with an authenticated FastAPI service"
 readme = "README.md"
 requires-python = ">=3.10,<3.14"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -23,6 +25,10 @@ dependencies = [
     "pandas>=2.2,<4",
     "torch>=2.2,<3",
 ]
+
+[project.urls]
+Repository = "https://github.com/seblessa/forecast-engine"
+Documentation = "https://github.com/seblessa/forecast-engine#readme"
 
 [project.optional-dependencies]
 server = [
@@ -40,6 +46,17 @@ dev = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["forecast_engine"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/LICENSE",
+    "/README.md",
+    "/pyproject.toml",
+    "/uv.lock",
+    "/server.py",
+    "/forecast_engine",
+    "/docs",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

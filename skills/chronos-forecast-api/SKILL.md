@@ -20,6 +20,7 @@ Include the bearer token from the backend secret store:
 
 ```http
 Authorization: Bearer <SAAS_API_TOKEN>
+User-Agent: ForecastStudio-SaaS/1.0
 ```
 
 This is a server-to-server call. Never put the token in browser code, a URL,
@@ -91,12 +92,17 @@ Timestamps are explicit UTC ISO 8601 strings with a `Z` suffix. Copy a
 returned timestamp literally into a later input record for a sequential
 round trip. Do not append `Z` manually or convert the timezone in the client.
 
-## Models and errors
+## Local operations, models, and errors
 
-Call `GET /models` to inspect model capabilities. `chronos2` supports
-multivariate targets, covariates, panel items, future data, cross-learning, and
-context length. `chronos-bolt-base` supports univariate forecasts without
-covariates. Select `quantile_levels` for custom intervals.
+For local administration only, the service also provides `GET /health`,
+`GET /models`, `GET /docs`, and `GET /openapi.json` on
+`http://localhost:8000`. These operational endpoints are not published through
+the public hostname, and Forecasting Studio must not call them publicly.
+
+Use the local `/models` source of truth to inspect capabilities. `chronos2`
+supports multivariate targets, covariates, panel items, future data,
+cross-learning, and context length. `chronos-bolt-base` supports univariate
+forecasts without covariates. Select `quantile_levels` for custom intervals.
 
 Handle `401` for missing or invalid authentication, `422` for invalid data or
 unsupported model options, `503` for missing service configuration, and `500`

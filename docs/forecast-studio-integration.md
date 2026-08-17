@@ -98,10 +98,13 @@ timezone conversion, or knowledge of internal normalization is needed.
 
 ## Models and options
 
-Call `GET /models` to inspect capabilities. Use `chronos2` for multivariate
-targets, covariates, `future_data`, cross-learning, and context length. Use
-`chronos-bolt-base` for univariate forecasts without covariates. Select
-`quantile_levels` to request custom intervals; the default is `[0.1, 0.5, 0.9]`.
+The public ingress exposes only `POST /forecast`; do not call
+`https://engine.forecasting-studio.com/models`. Engine administrators can
+inspect capabilities locally with `GET http://127.0.0.1:8000/models`. Use
+`chronos2` for multivariate targets, covariates, `future_data`, cross-learning,
+and context length. Use `chronos-bolt-base` for univariate forecasts without
+covariates. Select `quantile_levels` to request custom intervals; the default
+is `[0.1, 0.5, 0.9]`.
 
 ## Client behavior
 

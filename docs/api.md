@@ -93,8 +93,10 @@ inference call. The service does not create separate target-specific routes.
 
 ## Models and capabilities
 
+Administrators can query the model registry locally without loading weights:
+
 ```http
-GET /models
+GET http://127.0.0.1:8000/models
 ```
 
 The response is the source of truth for configured model names and capabilities:
@@ -116,8 +118,9 @@ The response is the source of truth for configured model names and capabilities:
 ```
 
 Use `chronos2` for related targets and covariates. Use `chronos-bolt-base` for
-univariate forecasts without covariates. An unsupported model capability is a
-`422` validation response.
+univariate forecasts without covariates. Forecasting Studio must use the
+documented capabilities and must not call `/models` through the public
+hostname. An unsupported model capability is a `422` validation response.
 
 ## Local operational routes
 

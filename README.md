@@ -155,16 +155,20 @@ Historical covariates are additional columns in `data`. Known future
 covariates are supplied through `future_data`. The same contract supports one
 item or many items and one target or many targets.
 
-Inspect available model capabilities without loading weights:
+Administrators can inspect available model capabilities without loading
+weights through the local-only endpoint:
 
 ```http
-GET /models
+GET http://localhost:8000/models
 ```
 
-The configured names are `chronos2` and `chronos-bolt-base`. `/models` reports
-whether each model supports multivariate data, covariates, panel items,
-cross-learning, and context length. Chronos Bolt accepts one target and no
-covariates; Chronos 2 supports the multivariate and covariate use cases.
+The configured names are `chronos2` and `chronos-bolt-base`. `/models` is an
+operational source of truth for local Engine administrators; Forecasting Studio
+must not call `/models` through the public hostname. The public ingress exposes
+only `POST /forecast`. The endpoint reports whether each model supports
+multivariate data, covariates, panel items, cross-learning, and context length.
+Chronos Bolt accepts one target and no covariates; Chronos 2 supports the
+multivariate and covariate use cases.
 
 Local operational routes are `GET /health`, `GET /models`, `GET /docs`, and
 `GET /openapi.json`. They are not published through the public hostname.
@@ -206,3 +210,7 @@ Caddy forwards only `/forecast` to FastAPI on private port `8000`. launchd
 keeps the Forecast Engine, Caddy, and tunnel processes running. See
 [the API contract](docs/api.md), [the Forecasting Studio handoff](docs/forecast-studio-integration.md),
 and [the deployment runbook](docs/deployment.md).
+
+## License
+
+Apache License 2.0. See [LICENSE](LICENSE).
