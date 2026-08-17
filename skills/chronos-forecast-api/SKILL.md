@@ -59,15 +59,15 @@ curl --fail-with-body \
   -H 'User-Agent: ForecastStudio-SaaS/1.0' \
   -d '{
     "data": [
-      {"date":"2026-01-01T00:00:00Z","dx":1.2,"dy":0.4},
-      {"date":"2026-01-01T00:00:01Z","dx":1.3,"dy":0.5},
-      {"date":"2026-01-01T00:00:02Z","dx":1.4,"dy":0.6}
+      {"date": "2026-01-01T00:00:00Z", "dx": 1.2, "dy": 0.4},
+      {"date": "2026-01-01T00:00:01Z", "dx": 1.3, "dy": 0.5},
+      {"date": "2026-01-01T00:00:02Z", "dx": 1.4, "dy": 0.6}
     ],
-    "target_cols":["dx","dy"],
-    "forecast_horizon":1,
-    "datetime_col":"date",
-    "frequency":"s",
-  "model":"chronos2"
+    "target_cols": ["dx", "dy"],
+    "forecast_horizon": 1,
+    "datetime_col": "date",
+    "frequency": "s",
+    "model": "chronos2"
   }'
 ```
 
