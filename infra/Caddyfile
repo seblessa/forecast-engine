@@ -9,9 +9,12 @@
 http://:8080 {
 	bind 127.0.0.1
 
-	@saas path /v1/saas/forecast /v1/saas/forecast/csv /v2/saas/forecast
+	@forecast {
+		method POST
+		path /forecast
+	}
 
-	handle @saas {
+	handle @forecast {
 		reverse_proxy 127.0.0.1:8000
 	}
 

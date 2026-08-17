@@ -54,7 +54,7 @@ class PipelineKey:
 class _PipelineHandle:
     pipeline: Any
     lock: RLock = field(default_factory=RLock)
-    aliases: set[str] = field(default_factory=set)
+    model_names: set[str] = field(default_factory=set)
 
 
 class PipelineManager:
@@ -95,7 +95,7 @@ class PipelineManager:
                 )
                 handle = _PipelineHandle(pipeline=pipeline)
                 self._cache[key] = handle
-            handle.aliases.add(spec.alias)
+            handle.model_names.add(spec.name)
 
         with handle.lock:
             yield handle.pipeline
@@ -107,10 +107,10 @@ class PipelineManager:
             return len(self._cache)
 
     @property
-    def loaded_aliases(self) -> list[str]:
-        """Canonical aliases represented by loaded pipeline instances."""
+    def loaded_models(self) -> list[str]:
+        """Model names represented by loaded pipeline instances."""
         with self._cache_lock:
-            aliases: set[str] = set()
+            model_names: set[str] = set()
             for handle in self._cache.values():
-                aliases.update(handle.aliases)
-            return sorted(aliases)
+                model_names.update(handle.model_names)
+            return sorted(model_names)

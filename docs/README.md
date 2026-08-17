@@ -1,7 +1,10 @@
 # Forecast Engine documentation
 
-- [SaaS API contract](saas-api.md): public routes, authentication, request and response formats.
-- [SaaS integration guide](saas-integration-guide.md): handoff for the webapp backend agent.
-- [SaaS deployment](saas-deployment.md): Mac Mini, DNS, tunnel, private-network access, and smoke tests.
-- [Mac Mini bootstrap](mac-mini-bootstrap.md): one-time SSH, secret, and Cloudflare setup.
-- [launchd templates](../infra/launchd/): persistent FastAPI, Caddy, and tunnel services.
+These documents describe the current package, HTTP contract, Forecasting
+Studio handoff, and Mac Mini deployment.
+
+- [API contract](api.md): request, response, authentication, models, and capabilities.
+- [Forecasting Studio integration](forecast-studio-integration.md): backend handoff and examples.
+- [Deployment runbook](deployment.md): FastAPI, Caddy, Cloudflare Tunnel, launchd, and smoke tests.
+- [Mac Mini bootstrap](mac-mini-bootstrap.md): one-time SSH, secret, and tunnel setup.
+- [launchd templates](../infra/launchd/): persistent service definitions.

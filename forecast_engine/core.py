@@ -57,22 +57,6 @@ class ForecastResult:
             )
         return records
 
-    def to_legacy_dataframe(
-        self,
-        *,
-        datetime_col: str,
-        target_col: str,
-        item_id_col: str | None,
-    ) -> pd.DataFrame:
-        """Format this result using the historical singular-target columns."""
-        return _legacy_dataframe(
-            self,
-            datetime_col=datetime_col,
-            target_col=target_col,
-            item_id_col=item_id_col,
-        )
-
-
 class ForecastEngine:
     """Own application-level validation, normalization, and Chronos inference."""
 
@@ -177,53 +161,6 @@ class ForecastEngine:
             item_id_col=item_id_col,
             internal_item_col=internal_item_col,
             datetime_col=datetime_col,
-        )
-
-    def forecast_legacy(
-        self,
-        *,
-        data: pd.DataFrame,
-        datetime_col: str,
-        target_col: str,
-        item_id_col: str | None,
-        frequency: str,
-        forecast_horizon: int,
-        engine: str,
-        past_covariates: pd.DataFrame | None = None,
-        future_covariates: pd.DataFrame | None = None,
-    ) -> pd.DataFrame:
-        """Adapt the historical singular-target contract onto :meth:`forecast`."""
-        normalized_data, normalized_future = self._merge_legacy_covariates(
-            data=data,
-            past_covariates=past_covariates,
-            future_covariates=future_covariates,
-            datetime_col=datetime_col,
-            target_col=target_col,
-            item_id_col=item_id_col,
-        )
-        engine_key = engine.lower()
-        if engine_key == "chronos2":
-            model = "chronos2"
-        elif engine_key == "chronos":
-            model = "chronos-bolt-base"
-        else:
-            raise ForecastValidationError(f"Unknown engine: {engine}")
-
-        result = self.forecast(
-            data=normalized_data,
-            target_cols=[target_col],
-            forecast_horizon=forecast_horizon,
-            datetime_col=datetime_col,
-            item_id_col=item_id_col,
-            frequency=frequency,
-            model=model,
-            future_data=normalized_future,
-            quantile_levels=DEFAULT_QUANTILE_LEVELS,
-        )
-        return result.to_legacy_dataframe(
-            datetime_col=datetime_col,
-            target_col=target_col,
-            item_id_col=item_id_col,
         )
 
     def _validate_request_arguments(
@@ -427,7 +364,7 @@ class ForecastEngine:
     ) -> None:
         if len(target_cols) > 1 and not spec.multivariate:
             raise ForecastValidationError(
-                f"Model '{spec.alias}' supports univariate forecasting only; "
+                f"Model '{spec.name}' supports univariate forecasting only; "
                 "choose chronos2 for multiple target columns."
             )
 
@@ -436,27 +373,27 @@ class ForecastEngine:
             datetime_col,
             *target_cols,
         }
-        future_covariates = (
+        future_data_columns = (
             set(future.columns) - {internal_item_col, datetime_col}
             if future is not None
             else set()
         )
-        has_covariates = bool(historical_covariates or future_covariates)
+        has_covariates = bool(historical_covariates or future_data_columns)
         if has_covariates and not spec.covariates:
             raise ForecastValidationError(
-                f"Model '{spec.alias}' does not support historical or future covariates"
+                f"Model '{spec.name}' does not support historical or future covariates"
             )
         if future is not None and not spec.covariates:
             raise ForecastValidationError(
-                f"Model '{spec.alias}' does not support future_data"
+                f"Model '{spec.name}' does not support future_data"
             )
         if cross_learning and not spec.cross_learning:
             raise ForecastValidationError(
-                f"Model '{spec.alias}' does not support cross_learning"
+                f"Model '{spec.name}' does not support cross_learning"
             )
         if context_length is not None and not spec.context_length:
             raise ForecastValidationError(
-                f"Model '{spec.alias}' does not expose context_length"
+                f"Model '{spec.name}' does not expose context_length"
             )
 
     def _normalize_result(
@@ -596,121 +533,3 @@ class ForecastEngine:
             candidate = f"{_INTERNAL_ITEM_PREFIX}{index}"
             index += 1
         return candidate
-
-    def _merge_legacy_covariates(
-        self,
-        *,
-        data: pd.DataFrame,
-        past_covariates: pd.DataFrame | None,
-        future_covariates: pd.DataFrame | None,
-        datetime_col: str,
-        target_col: str,
-        item_id_col: str | None,
-    ) -> tuple[pd.DataFrame, pd.DataFrame | None]:
-        context = self._normalize_timestamps(data, "data", datetime_col)
-        past = (
-            self._normalize_timestamps(past_covariates, "past_covariates", datetime_col)
-            if past_covariates is not None
-            else None
-        )
-        future = (
-            self._normalize_timestamps(
-                future_covariates, "future_covariates", datetime_col
-            )
-            if future_covariates is not None
-            else None
-        )
-
-        if past is not None or future is not None:
-            if item_id_col:
-                for name, frame in (
-                    ("past_covariates", past),
-                    ("future_covariates", future),
-                ):
-                    if frame is not None and item_id_col not in frame.columns:
-                        raise ForecastValidationError(
-                            f"{name} is missing item ID column '{item_id_col}'"
-                        )
-
-            join_columns = [datetime_col]
-            internal_item_col: str | None = None
-            if item_id_col:
-                join_columns.append(item_id_col)
-            else:
-                potential_future = future if future is not None else past
-                internal_item_col = self._new_internal_item_col(
-                    context, potential_future
-                )
-                context[internal_item_col] = 0
-                for frame in (past, future):
-                    if frame is not None:
-                        frame[internal_item_col] = 0
-                join_columns.append(internal_item_col)
-
-            for name, frame in (("past_covariates", past), ("future_covariates", future)):
-                if frame is None:
-                    continue
-                if frame.duplicated(join_columns).any():
-                    raise ForecastValidationError(
-                        f"{name} contains duplicate timestamps for an item"
-                    )
-                forbidden = set(frame.columns) & {target_col}
-                if forbidden:
-                    raise ForecastValidationError(
-                        f"{name} must not contain target columns: {sorted(forbidden)}"
-                    )
-
-            if past is not None:
-                covariate_columns = set(past.columns) - set(join_columns)
-                collisions = covariate_columns & set(context.columns)
-                if collisions:
-                    raise ForecastValidationError(
-                        "past_covariates contains columns already present in data: "
-                        + ", ".join(sorted(collisions))
-                    )
-                context = context.merge(
-                    past,
-                    on=join_columns,
-                    how="left",
-                    validate="one_to_one",
-                )
-
-            if internal_item_col is not None:
-                context = context.drop(columns=[internal_item_col])
-                if future is not None:
-                    future = future.drop(columns=[internal_item_col])
-
-        return context, future
-
-
-def _legacy_dataframe(
-    result: ForecastResult,
-    *,
-    datetime_col: str,
-    target_col: str,
-    item_id_col: str | None,
-) -> pd.DataFrame:
-    """Format the canonical result using the historical response column names."""
-    prediction = result.predictions
-    required_quantiles = {level: f"q_{level}" for level in DEFAULT_QUANTILE_LEVELS}
-    missing = [
-        str(level)
-        for level, column in required_quantiles.items()
-        if column not in prediction.columns
-    ]
-    if missing:
-        raise ForecastInferenceError(
-            "Legacy output requires quantiles: " + ", ".join(missing)
-        )
-
-    output = pd.DataFrame(
-        {
-            datetime_col: prediction["timestamp"],
-            f"{target_col}_predicted": prediction["prediction"],
-            "lower_bound": prediction[required_quantiles[0.1]],
-            "upper_bound": prediction[required_quantiles[0.9]],
-        }
-    )
-    if item_id_col:
-        output.insert(0, item_id_col, prediction["item_id"])
-    return output

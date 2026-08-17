@@ -1,4 +1,4 @@
-"""Configured model aliases and their supported forecasting capabilities."""
+"""Configured models and their supported forecasting capabilities."""
 
 from __future__ import annotations
 
@@ -10,9 +10,9 @@ from .errors import ForecastValidationError
 
 @dataclass(frozen=True)
 class ModelSpec:
-    """A server-controlled model alias and the capabilities it exposes."""
+    """A server-controlled model name and the capabilities it exposes."""
 
-    alias: str
+    name: str
     model_id: str
     family: str
     multivariate: bool
@@ -20,12 +20,11 @@ class ModelSpec:
     cross_learning: bool
     panel: bool = True
     context_length: bool = False
-    legacy_aliases: tuple[str, ...] = ()
 
 
 DEFAULT_MODEL_SPECS: tuple[ModelSpec, ...] = (
     ModelSpec(
-        alias="chronos2",
+        name="chronos2",
         model_id="amazon/chronos-2",
         family="chronos2",
         multivariate=True,
@@ -35,7 +34,7 @@ DEFAULT_MODEL_SPECS: tuple[ModelSpec, ...] = (
         context_length=True,
     ),
     ModelSpec(
-        alias="chronos-bolt-base",
+        name="chronos-bolt-base",
         model_id="amazon/chronos-bolt-base",
         family="chronos-bolt",
         multivariate=False,
@@ -43,47 +42,39 @@ DEFAULT_MODEL_SPECS: tuple[ModelSpec, ...] = (
         cross_learning=False,
         panel=True,
         context_length=False,
-        legacy_aliases=("chronos",),
     ),
 )
 
 
 class ModelRegistry:
-    """Resolve client-facing aliases without allowing arbitrary model IDs."""
+    """Resolve configured model names without allowing arbitrary model IDs."""
 
     def __init__(self, specs: Iterable[ModelSpec] = DEFAULT_MODEL_SPECS) -> None:
         canonical: dict[str, ModelSpec] = {}
-        aliases: dict[str, ModelSpec] = {}
         for spec in specs:
-            key = spec.alias.lower()
-            if key in canonical or key in aliases:
-                raise ValueError(f"Duplicate model alias: {spec.alias}")
+            key = spec.name.lower()
+            if key in canonical:
+                raise ValueError(f"Duplicate model name: {spec.name}")
             canonical[key] = spec
-            for legacy_alias in spec.legacy_aliases:
-                legacy_key = legacy_alias.lower()
-                if legacy_key in canonical or legacy_key in aliases:
-                    raise ValueError(f"Duplicate model alias: {legacy_alias}")
-                aliases[legacy_key] = spec
 
         self._canonical = canonical
-        self._aliases = aliases
 
-    def get(self, alias: str) -> ModelSpec:
+    def get(self, model_name: str) -> ModelSpec:
         """Return a configured model or raise a request-level error."""
-        if not isinstance(alias, str) or not alias.strip():
-            raise ForecastValidationError("model must be a configured model alias")
+        if not isinstance(model_name, str) or not model_name.strip():
+            raise ForecastValidationError("model must be a configured model name")
 
-        spec = self._canonical.get(alias.lower()) or self._aliases.get(alias.lower())
+        spec = self._canonical.get(model_name.lower())
         if spec is None:
-            available = ", ".join(self.aliases())
+            available = ", ".join(self.names())
             raise ForecastValidationError(
-                f"Unknown model alias '{alias}'. Available models: {available}."
+                f"Unknown model '{model_name}'. Available models: {available}."
             )
         return spec
 
-    def aliases(self) -> tuple[str, ...]:
-        """Return canonical aliases in registry order."""
-        return tuple(spec.alias for spec in self._canonical.values())
+    def names(self) -> tuple[str, ...]:
+        """Return configured model names in registry order."""
+        return tuple(spec.name for spec in self._canonical.values())
 
     def specs(self) -> tuple[ModelSpec, ...]:
         """Return canonical model specifications in registry order."""

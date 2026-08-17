@@ -114,7 +114,7 @@ def test_to_records_serializes_utc_explicitly():
     }
 
 
-def test_v2_timestamp_round_trip_is_accepted_without_manual_timezone_changes():
+def test_timestamp_round_trip_is_accepted_without_manual_timezone_changes():
     engine, _, _ = make_engine()
     context = make_data(targets=["dx", "dy"])
 
@@ -186,7 +186,7 @@ def test_multiple_items_and_targets_keep_their_distinction():
     assert set(result.predictions["target_name"]) == {"dx", "dy"}
 
 
-def test_historical_and_future_covariates_use_the_dataframe_interface():
+def test_historical_and_future_data_use_the_dataframe_interface():
     engine, pipeline, _ = make_engine()
     data = make_data()
     data["temperature"] = [10.0, 11.0, 12.0]
@@ -258,7 +258,9 @@ def test_timezone_aware_inputs_are_normalized_to_utc_naive():
         ({"target_cols": []}, "target_cols"),
         ({"target_cols": ["sales", "sales"]}, "duplicates"),
         ({"target_cols": ["missing"]}, "missing"),
+        ({"forecast_horizon": 0}, "positive"),
         ({"target_cols": ["sales"], "frequency": "not-a-frequency"}, "frequency"),
+        ({"target_cols": ["sales"], "quantile_levels": [0.0, 0.5]}, "strictly"),
     ],
 )
 def test_invalid_requests_fail_with_actionable_validation_errors(kwargs, message):
