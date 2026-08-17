@@ -1,101 +1,93 @@
 # Forecast Engine
 
-Forecast Engine is a reusable Python package and a thin authenticated FastAPI
-service for time-series forecasting with the official Amazon Chronos
-pipelines.
+![Python](https://img.shields.io/badge/Python-3.10--3.13-blue)
+![License](https://img.shields.io/badge/License-Apache%202.0-green)
+![Amazon Chronos](https://img.shields.io/badge/Amazon-Chronos-ff9900)
 
-The product has one forecasting contract:
+**A lightweight forecasting engine built on the official Amazon Chronos pipelines.**
+
+Forecast Engine provides one clean interface for running modern time-series forecasts from Python or over HTTP. It supports univariate and multivariate forecasting, panel data, covariates, prediction intervals, and reusable model pipelines without exposing Chronos internals to the application layer.
 
 ```text
-ForecastEngine Python API
-POST /forecast
+Python  →  ForecastEngine.forecast(...)
+HTTP    →  POST /forecast
 ```
 
-The Python core owns data normalization, validation, model capabilities,
-pipeline caching, inference, and the canonical response. FastAPI only handles
-JSON transport and bearer authentication.
+Built on [amazon-science/chronos-forecasting](https://github.com/amazon-science/chronos-forecasting).
 
-## Installation
+## Why Forecast Engine?
 
-The package is prepared for PyPI publication but is not published yet. For
-local development:
+The official Chronos package provides the forecasting models. Forecast Engine adds the application layer around them:
+
+- **Chronos 2 native multivariate forecasting** for related targets such as `dx + dy`.
+- **Univariate forecasting** with Chronos 2 or Chronos Bolt.
+- **Panel forecasting** for multiple independent items in one request.
+- **Historical and known-future covariates** with Chronos 2.
+- **Configurable quantiles** for prediction intervals.
+- **Stable validation and response formats** across Python and HTTP usage.
+- **Lazy model loading and pipeline reuse** so model weights are not reloaded for every forecast.
+- **A single authenticated REST endpoint** that is easy to place behind an application backend.
+
+## Quick start
+
+The package is prepared for PyPI but is **not published there yet**.
+
+For now, clone the repository and install the locked environment:
 
 ```bash
+git clone https://github.com/seblessa/forecast-engine.git
+cd forecast-engine
 uv sync --locked
 ```
 
-Future PyPI installation:
-
-```bash
-pip install forecast-engine
-```
-
-To install the optional HTTP service dependencies from a published package:
-
-```bash
-pip install 'forecast-engine[server]'
-```
-
-## Python API
+### Python
 
 ```python
 import pandas as pd
 
 from forecast_engine import ForecastEngine
 
+series = pd.DataFrame({
+    "date": pd.date_range("2026-01-01", periods=48, freq="h"),
+    "sales": range(48),
+})
+
 engine = ForecastEngine()
-data = pd.DataFrame(
-    {
-        "date": pd.date_range("2026-01-01", periods=24, freq="h"),
-        "sales": range(24),
-    }
-)
 
 result = engine.forecast(
-    data=data,
+    data=series,
     target_cols=["sales"],
-    forecast_horizon=24,
-    datetime_col="date",
+    forecast_horizon=12,
     frequency="h",
 )
-records = result.to_records()
+
+print(result.to_records())
 ```
 
-Related variables are forecast jointly by Chronos 2:
+For related variables, pass them together:
 
 ```python
 result = engine.forecast(
     data=movement_history,
     target_cols=["dx", "dy"],
     forecast_horizon=8,
-    datetime_col="date",
     frequency="s",
 )
 ```
 
-`ForecastResult.to_records()` returns long-format records with `timestamp`,
-`item_id`, `target_name`, `prediction`, and `quantiles`. Timestamps are UTC
-ISO 8601 values with a `Z` suffix, such as
-`2026-01-01T00:00:03Z`. Append a returned timestamp directly to the next
-input context; the client must not add `Z` or convert timezones.
+Chronos 2 receives those targets jointly in one native multivariate forecast.
 
 ## REST API
 
-Start the local service with:
-
-```bash
-SAAS_API_TOKEN='<secret>' HOST=0.0.0.0 PORT=8000 uv run python server.py
-```
-
-The only inference operation is:
+Forecast Engine also includes a thin FastAPI service. The public inference contract is intentionally small:
 
 ```http
 POST /forecast
-Authorization: Bearer <SAAS_API_TOKEN>
+Authorization: Bearer <token>
 Content-Type: application/json
 ```
 
-Example:
+Example request body:
 
 ```json
 {
@@ -106,111 +98,54 @@ Example:
   ],
   "target_cols": ["dx", "dy"],
   "forecast_horizon": 5,
-  "datetime_col": "date",
-  "item_id_col": null,
   "frequency": "s",
-  "model": "chronos2",
-  "future_data": null,
-  "quantile_levels": [0.1, 0.5, 0.9],
-  "batch_size": 256,
-  "context_length": null,
-  "cross_learning": false
+  "model": "chronos2"
 }
 ```
 
-Response:
+Responses use a stable long format with:
 
-```json
-{
-  "predictions": [
-    {
-      "timestamp": "2026-01-01T00:00:03Z",
-      "item_id": null,
-      "target_name": "dx",
-      "prediction": 1.25,
-      "quantiles": {"0.1": 1.0, "0.5": 1.25, "0.9": 1.5}
-    }
-  ]
-}
+```text
+timestamp · item_id · target_name · prediction · quantiles
 ```
 
-The endpoint requires the existing `SAAS_API_TOKEN` as a bearer token. Keep
-the token in the Forecasting Studio backend secret store; browser code must
-never receive it. Missing or invalid credentials return `401`.
+Timestamps are returned as explicit UTC ISO 8601 values ending in `Z` and can be reused directly in later requests.
 
-The request fields are:
+See the [API reference](docs/api.md) for the complete request contract, validation rules, errors, covariates, panel data, and runtime options.
 
-- `data`: structured historical records containing the datetime and targets.
-- `target_cols`: one or more related variables for the same forecasting task.
-- `forecast_horizon`: positive number of future steps.
-- `datetime_col`: datetime field, default `date`.
-- `item_id_col`: optional field identifying separate items/tasks.
-- `frequency`: pandas frequency, for example `s`, `h`, or `D`.
-- `model`: configured model name, default `chronos2`.
-- `future_data`: optional known future records with the same item structure.
-- `quantile_levels`: requested probabilities between zero and one.
-- `batch_size`, `context_length`, `cross_learning`: model runtime controls.
+## Models
 
-Historical covariates are additional columns in `data`. Known future
-covariates are supplied through `future_data`. The same contract supports one
-item or many items and one target or many targets.
+| Model | Multivariate | Covariates | Panel data | Best for |
+|---|---:|---:|---:|---|
+| `chronos2` | Yes | Yes | Yes | General forecasting, related targets, covariates |
+| `chronos-bolt-base` | No | No | Yes | Fast univariate forecasting |
 
-Administrators can inspect available model capabilities without loading
-weights through the local-only endpoint:
+`chronos2` is the default model.
 
-```http
-GET http://localhost:8000/models
-```
+## Documentation
 
-The configured names are `chronos2` and `chronos-bolt-base`. `/models` is an
-operational source of truth for local Engine administrators; Forecasting Studio
-must not call `/models` through the public hostname. The public ingress exposes
-only `POST /forecast`. The endpoint reports whether each model supports
-multivariate data, covariates, panel items, cross-learning, and context length.
-Chronos Bolt accepts one target and no covariates; Chronos 2 supports the
-multivariate and covariate use cases.
+The README intentionally stays small. More detailed documentation lives in [`docs/`](docs/README.md):
 
-Local operational routes are `GET /health`, `GET /models`, `GET /docs`, and
-`GET /openapi.json`. They are not published through the public hostname.
+- [API contract](docs/api.md)
+- [Forecasting Studio integration](docs/forecast-studio-integration.md)
+- [Deployment](docs/deployment.md)
+- [Mac Mini bootstrap](docs/mac-mini-bootstrap.md)
 
 ## Development
 
-Run the complete validation suite:
-
 ```bash
+uv sync --locked
 uv run pytest -W error
 uv build
 ```
 
-`uv build` creates both a wheel and a source distribution. The wheel contains
-the importable `forecast_engine` package; the FastAPI service entrypoint is
-kept in the repository for deployment.
+`uv build` produces both a wheel and a source distribution. A future PyPI release will support:
 
-## Repository layout
-
-```text
-forecast_engine/
-    core.py             # reusable Python API and ForecastResult
-    models.py           # model registry and capabilities
-    pipeline.py         # lazy pipeline loading and cache
-    errors.py            # public validation/inference errors
-    api/                # FastAPI schemas, auth, and routes
-server.py              # Uvicorn entrypoint
-tests/                 # core and HTTP contract tests
-docs/                  # API, integration, deployment, and bootstrap guides
-infra/                 # Caddy, Cloudflare template, and launchd templates
+```bash
+pip install forecast-engine
+pip install "forecast-engine[server]"
 ```
-
-## Production overview
-
-Forecasting Studio calls
-`https://engine.forecasting-studio.com/forecast` server-to-server with the
-same bearer token. Cloudflare Tunnel points to Caddy on `127.0.0.1:8080`;
-Caddy forwards only `/forecast` to FastAPI on private port `8000`. launchd
-keeps the Forecast Engine, Caddy, and tunnel processes running. See
-[the API contract](docs/api.md), [the Forecasting Studio handoff](docs/forecast-studio-integration.md),
-and [the deployment runbook](docs/deployment.md).
 
 ## License
 
-Apache License 2.0. See [LICENSE](LICENSE).
+Licensed under the [Apache License 2.0](LICENSE).
