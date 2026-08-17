@@ -168,8 +168,11 @@ force-push to solve a sync problem.
 - Only after that authorization may the accumulated state of `dev` be promoted to `main`.
 - `main` may be modified only after the user explicitly authorizes the release.
 - An ordinary request to commit or push means `dev`; it does not authorize `main`.
-- Every commit reaching `main` must represent a new package release.
-- Every commit reaching `main` must contain a PyPI version that has never been published.
+- One authorized promotion of accumulated `dev` state to `main` represents one
+  package release and may contain multiple commits.
+- The tip of `main` after that promotion must contain a PyPI version that has
+  never been published.
+- Do not push additional commits to `main` outside an authorized release.
 - Before moving work to `main`, tests and the package build must pass.
 - Never force-push or delete `main`.
 - Never reuse a PyPI version, even if an earlier release attempt failed.
